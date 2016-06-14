@@ -30,16 +30,19 @@ Pour chaque service :
 ```
 
 Pour chaque opération de service :
+
 ```c
 #define <AREA>_<SERVICE>_<OPERATION>_OPERATION_NUMBER <operation number>
 ```
 
 Pour chaque erreur levée par une opération :
+
 ```c
 #define <AREA>_<SERVICE>_<OPERATION>_<ERROR>_ERROR_NUMBER <error number>
 ```
 
 Pour chaque type de donnée :
+
 ```c
 #define <AREA>_[<SERVICE>_]<TYPE>_SHORT_FORM <short form>
 #define <AREA>_[<SERVICE>_]<TYPE>_LIST_SHORT_FORM <short form>
@@ -231,6 +234,7 @@ int <qfop>_<stage|error>_add_encoding_length[_<index>][_<qftype>](
 ```
 
   -	Si l'opération est Pub/Sub :
+  
 ```c
 int <qfop>_update_add_encoding_length[_<index>][_<qftype>_list](
     int encoding_format_code, void * encoder,
