@@ -1,0 +1,21 @@
+FROM 32bit/debian:jessie
+
+MAINTAINER guilhem.bonnefille@c-s.fr
+
+# Adding dependencies
+#RUN apt-get -y update && apt-get install -y libpcre3-dev libczmq-dev git && apt-get clean && apt-get autoclean
+RUN apt-get -y update && apt-get install -y --force-yes libpcre3-dev libzmq3-dev git automake autoconf libtool pkg-config gcc make && apt-get clean && apt-get autoclean
+
+# Installing client
+WORKDIR /opt
+#!/bin/sh
+
+ENV GIT_DEPTH=3
+
+RUN git clone --depth $GIT_DEPTH https://github.com/imatix/gsl && cd gsl/src && make && make install
+
+RUN git clone --depth $GIT_DEPTH https://github.com/zeromq/zproject.git && cd zproject && ./autogen.sh && ./configure && make && make install
+
+RUN git clone --depth $GIT_DEPTH https://github.com/zeromq/czmq czmq && cd czmq && ./autogen.sh && ./configure --prefix=/usr/local && make && make install
+
+RUN ldconfig
