@@ -6,7 +6,7 @@ services:
   - docker
 
 matrix:
-  include:
+  allow_failures:
     - env:
         - "DOCKER_OS=Debian"
         - "DOCKER_TAG=debian"
@@ -17,6 +17,7 @@ matrix:
         - "DOCKER_TAG=debian32"
       services:
         - docker
+  include:
     - env:
         - "DOCKER_OS=Centos"
         - "DOCKER_TAG=centos"
