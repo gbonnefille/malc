@@ -4,7 +4,7 @@ MAINTAINER guilhem.bonnefille@c-s.fr
 
 # Adding dependencies
 #RUN apt-get -y update && apt-get install -y libpcre3-dev libczmq-dev git && apt-get clean && apt-get autoclean
-RUN apt-get -y update && apt-get install -y --force-yes libpcre3-dev libzmq3-dev git automake autoconf libtool pkg-config gcc make && apt-get clean && apt-get autoclean
+RUN apt-get -y update && apt-get install -y --force-yes libpcre3-dev libzmq3-dev git automake autoconf libtool pkg-config gcc g++ make && apt-get clean && apt-get autoclean
 
 # Installing client
 WORKDIR /opt

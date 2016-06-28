@@ -3,7 +3,7 @@ FROM centos:latest
 MAINTAINER guilhem.bonnefille@c-s.fr
 
 # Adding dependencies
-RUN yum makecache && yum install -y pcre-devel git automake autoconf libtool pkgconfig gcc make
+RUN yum makecache && yum install -y pcre-devel git automake autoconf libtool pkgconfig gcc gcc-c++ make
 
 # Installing client
 WORKDIR /opt
