@@ -22,6 +22,11 @@ matrix:
         - "DOCKER_TAG=centos"
       services:
         - docker
+    - env:
+        - "DOCKER_OS=OpenSuse"
+        - "DOCKER_TAG=opensuse"
+      services:
+        - docker
 
 before_install:
   - docker build -t gbe/malc-$DOCKER_TAG -f Dockerfile_$DOCKER_OS .

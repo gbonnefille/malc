@@ -1,0 +1,22 @@
+FROM opensuse:latest
+
+MAINTAINER guilhem.bonnefille@c-s.fr
+
+# Adding dependencies
+RUN zypper install -y pcre-devel git automake autoconf libtool pkgconfig gcc gcc-c++ make
+
+# Installing client
+WORKDIR /opt
+#!/bin/sh
+
+ENV GIT_DEPTH=3
+
+RUN git clone --depth $GIT_DEPTH https://github.com/imatix/gsl && cd gsl/src && make && make install
+
+RUN git clone --depth $GIT_DEPTH https://github.com/zeromq/zproject.git && cd zproject && ./autogen.sh && ./configure && make && make install
+
+RUN git clone --depth $GIT_DEPTH https://github.com/zeromq/libzmq libzmq && cd libzmq && ./autogen.sh && ./configure --prefix=/usr/local && make && make install
+
+RUN git clone --depth $GIT_DEPTH https://github.com/zeromq/czmq czmq && cd czmq && ./autogen.sh && ./configure --prefix=/usr/local && make && make install
+
+RUN ldconfig
