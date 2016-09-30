@@ -1,8 +1,35 @@
+/*
+ * The MIT License (MIT)
+ * 
+ * Copyright (c) 2016 CNES
+ * 
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ * 
+ * The above copyright notice and this permission notice shall be included in all
+ * copies or substantial portions of the Software.
+ * 
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
+ */
+
 /* */
 #include "invoke_app.h"
 
 bool split = false;
-bool tcp = false;
+bool tcp = true;
+
+mal_actor_t *provider_actor = NULL;
+mal_actor_t *consumer_actor = NULL;
 
 int invoke_app_create_provider(
     bool verbose,
@@ -16,8 +43,7 @@ int invoke_app_create_provider(
 
   invoke_app_myprovider_t *provider = invoke_app_myprovider_new(encoder, decoder);
 
-//  mal_actor_t *provider_actor =
-  mal_actor_new(
+  provider_actor = mal_actor_new(
       mal_ctx,
       provider_uri, provider,
       invoke_app_myprovider_initialize, invoke_app_myprovider_finalize);
@@ -50,8 +76,7 @@ int invoke_app_create_consumer(
   mal_uri_t *consumer_uri = mal_ctx_create_uri(mal_ctx, "invoke_app/myconsumer");
   printf("invoke_app: consumer URI: %s\n", consumer_uri);
 
-//  mal_actor_t *consumer_actor =
-  mal_actor_new(
+  consumer_actor = mal_actor_new(
       mal_ctx,
       consumer_uri, consumer,
       invoke_app_myconsumer_initialize, invoke_app_myconsumer_finalize);
@@ -70,13 +95,12 @@ void invoke_app_test(bool verbose) {
     // All the MAL header fields are passed
     maltcp_header_t *maltcp_header = maltcp_header_new(true, 0, true, NULL, NULL, NULL, NULL);
 
-    // This test uses the same encoding configuration at the MAL/ZMQ transport
-    // level (MAL header encoding) and at the application
+    // This test uses the same encoding configuration at the MAL/ZMQ
+    // transport level (MAL header encoding) and at the application
     // level (MAL message body encoding)
     ctx = maltcp_ctx_new(
         mal_ctx,
-        NULL,                 // Use default transformation of MAL URI to ZMQ URI
-        "localhost", "6666",
+        "127.0.0.1", "6666",
         maltcp_header,
         true);
     // Change the logging level of maltcp encoding
@@ -120,7 +144,6 @@ void invoke_app_test(bool verbose) {
 
   // Start blocks until interrupted (see zloop).
   mal_ctx_start(mal_ctx);
-  
   printf("Stopped.\n");
   
   mal_ctx_destroy(&mal_ctx);

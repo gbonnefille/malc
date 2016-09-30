@@ -1,3 +1,27 @@
+/*
+ * The MIT License (MIT)
+ * 
+ * Copyright (c) 2016 CNES
+ * 
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ * 
+ * The above copyright notice and this permission notice shall be included in all
+ * copies or substantial portions of the Software.
+ * 
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
+ */
+
 #include "testarea.h"
 
 struct _testarea_testenumeration_list_t {
@@ -62,11 +86,15 @@ int testarea_testenumeration_list_add_encoding_length_malbinary(testarea_testenu
 {
   int rc = 0;
   unsigned int list_size = self->element_count;
-  mal_encoder_add_list_size_encoding_length(encoder, list_size, cursor);
+  rc = mal_encoder_add_list_size_encoding_length(encoder, list_size, cursor);
+  if (rc < 0)
+    return rc;
   for (int i = 0; i < list_size; i++)
   {
     bool presence_flag = self->presence_flags[i];
-    mal_encoder_add_presence_flag_encoding_length(encoder, cursor, presence_flag);
+    rc = mal_encoder_add_presence_flag_encoding_length(encoder, presence_flag, cursor);
+    if (rc < 0)
+      return rc;
     if (presence_flag)
     {
       rc = mal_encoder_add_small_enum_encoding_length(encoder, self->content[i], cursor);
@@ -105,6 +133,24 @@ int testarea_testenumeration_list_decode_malbinary(testarea_testenumeration_list
   rc = mal_decoder_decode_list_size(decoder, cursor, &list_size);
   if (rc < 0)
     return rc;
+  if (list_size == 0)
+  {
+    self->element_count = 0;
+    self->presence_flags = NULL;
+    self->content = NULL;
+    return 0;
+  }
+  self->presence_flags = (bool *) calloc(list_size, sizeof(bool));
+  if (self->presence_flags == NULL)
+    return -1;
+  self->content = (testarea_testenumeration_t *) calloc(list_size, sizeof(testarea_testenumeration_t));
+  if (self->content == NULL)
+  {
+    free(self->presence_flags);
+    self->presence_flags = NULL;
+    return -1;
+  }
+  self->element_count = list_size;
   for (int i = 0; i < list_size; i++)
   {
     bool presence_flag;

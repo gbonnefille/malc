@@ -1,3 +1,27 @@
+/*
+ * The MIT License (MIT)
+ * 
+ * Copyright (c) 2016 CNES
+ * 
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ * 
+ * The above copyright notice and this permission notice shall be included in all
+ * copies or substantial portions of the Software.
+ * 
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
+ */
+
 /* */
 #include "malzmq.h"
 
@@ -36,7 +60,6 @@ mal_decoder_t *malzmq_get_decoder(malzmq_ctx_t *self) {
 typedef struct {
   malzmq_ctx_t *malzmq_ctx;
   mal_endpoint_t *mal_endpoint;
-
   void *socket;
   zhash_t *remote_socket_table; // client sockets connected to remote mal contexts, key = uri
 } malzmq_endpoint_data_t;
@@ -270,6 +293,9 @@ mal_uri_t *get_ps_uri(malzmq_ctx_t *self, mal_uri_t *uri) {
   }
 }
 
+int malzmq_ctx_mal_socket_handle(zloop_t *loop, zmq_pollitem_t *poller,
+    malzmq_ctx_t *self, zmsg_t *zmsg, bool isPubsub);
+
 // zloop_fn interface for standard socket
 int malzmq_ctx_mal_standard_socket_handle(zloop_t *loop, zmq_pollitem_t *poller, void *arg) {
   malzmq_ctx_t *self = (malzmq_ctx_t *) arg;
@@ -429,7 +455,7 @@ malzmq_ctx_t *malzmq_ctx_new(mal_ctx_t *mal_ctx,
       malzmq_ctx_create_endpoint, malzmq_ctx_destroy_endpoint,
       malzmq_ctx_create_poller, malzmq_ctx_destroy_poller,
       malzmq_ctx_poller_add_endpoint, malzmq_ctx_poller_del_endpoint,
-      malzmq_ctx_send_message, malzmq_ctx_recv_message,
+      malzmq_ctx_send_message, malzmq_ctx_recv_message, malzmq_ctx_endpoint_init_operation,
       malzmq_ctx_poller_wait,
       malzmq_ctx_destroy_message,
       malzmq_ctx_start,
@@ -512,7 +538,8 @@ int malzmq_ctx_send_message(void *self, mal_endpoint_t *mal_endpoint,
 
   clog_debug(malzmq_logger, "malzmq_ctx: mal_message_add_encoding_length_malbinary\n");
 
-  // TODO (AF): Use virtual allocation and initialization functions from encoder.
+  // Note: We could use virtual allocation and initialization functions from encoder
+  // rather than malbinary interface.
   malbinary_cursor_t cursor;
   malbinary_cursor_reset(&cursor);
 
@@ -531,7 +558,8 @@ int malzmq_ctx_send_message(void *self, mal_endpoint_t *mal_endpoint,
 
   clog_debug(malzmq_logger, "malzmq_ctx: encoding_length=%d\n", malbinary_cursor_get_length(&cursor));
 
-  // TODO (AF): Replace by a virtual function
+  // Note: We could use virtual allocation and initialization functions from encoder
+  // rather than malbinary interface.
   malbinary_cursor_init(&cursor,
       (char *) malloc(malbinary_cursor_get_length(&cursor)),
       malbinary_cursor_get_length(&cursor),
@@ -598,7 +626,8 @@ int malzmq_ctx_recv_message(void *self, mal_endpoint_t *mal_endpoint, mal_messag
     // MALZMQ always uses the 'malbinary' encoding format for the messages encoding (another format
     // may be used at the application layer for the message body).
 
-    // TODO (AF): Use virtual allocation and initialization functions from encoder.
+    // Note: We could use virtual allocation and initialization functions from encoder
+    // rather than malbinary interface.
     malbinary_cursor_t cursor;
 	  malbinary_cursor_init(&cursor, (char *) mal_msg_bytes, mal_msg_bytes_length, 0);
 
@@ -642,6 +671,65 @@ int malzmq_ctx_recv_message(void *self, mal_endpoint_t *mal_endpoint, mal_messag
 
   return rc;
 }
+
+// NOTE: Currently catch the PUBLISH_(DE)REGISTER message in order to automatically send
+// the corresponding ack. This code corresponds to the current ZMQ implementation of the
+// Pub/Sub interaction.
+int trap_publish_register(mal_endpoint_t *mal_endpoint, mal_message_t *init_message, mal_uoctet_t stage) {
+  mal_message_t *result_message = mal_message_new(
+      mal_message_get_authentication_id(init_message),
+      mal_message_get_qoslevel(init_message),
+      mal_message_get_priority(init_message),
+      mal_message_get_domain(init_message),
+      mal_message_get_network_zone(init_message),
+      mal_message_get_session(init_message),
+      mal_message_get_session_name(init_message),
+      0);
+  mal_message_set_body(result_message, NULL);
+  mal_message_set_body_length(result_message, 0);
+  mal_message_init(result_message,
+      mal_message_get_service_area(init_message), mal_message_get_area_version(init_message),
+      mal_message_get_service(init_message), mal_message_get_operation(init_message),
+      MAL_INTERACTIONTYPE_PUBSUB, stage);
+
+  mal_message_set_uri_to(result_message,
+      mal_message_get_uri_from(init_message));
+  mal_message_set_free_uri_to(result_message, false);
+  mal_message_set_uri_from(result_message, mal_endpoint_get_uri(mal_endpoint));
+  mal_message_set_free_uri_from(result_message, false);
+  mal_message_set_transaction_id(result_message,
+      mal_message_get_transaction_id(init_message));
+  mal_message_set_is_error_message(result_message, false);
+
+  // The current implementation of the publish/subscribe sends automatically the
+  // acknowledge messages for PUBLISH_[DE]REGISTER.
+
+  return mal_ctx_send_message(mal_endpoint_get_mal_ctx(mal_endpoint), mal_endpoint, result_message);
+}
+
+int malzmq_ctx_endpoint_init_operation(mal_endpoint_t *mal_endpoint,
+    mal_message_t *message, mal_uri_t *uri_to, bool set_tid) {
+
+  mal_message_set_uri_to(message, uri_to);
+  mal_message_set_uri_from(message,  mal_endpoint_get_uri(mal_endpoint));
+  mal_message_set_free_uri_from(message, false);
+  if (set_tid) {
+    mal_message_set_transaction_id(message, mal_endpoint_get_next_transaction_id_counter(mal_endpoint));
+  }
+
+  // Note: Currently catch the PUBLISH_(DE)REGISTER message in order to automatically send
+  // the corresponding ack. This code corresponds to the current ZMQ implementation of the
+  // Pub/Sub interaction.
+  mal_uoctet_t stage = mal_message_get_interaction_stage(message);
+  if (stage == MAL_IP_STAGE_PUBSUB_PUBLISH_REGISTER) {
+    return trap_publish_register(mal_endpoint, message, MAL_IP_STAGE_PUBSUB_PUBLISH_REGISTER_ACK);
+  } else if(stage == MAL_IP_STAGE_PUBSUB_PUBLISH_DEREGISTER) {
+    return trap_publish_register(mal_endpoint, message, MAL_IP_STAGE_PUBSUB_PUBLISH_DEREGISTER_ACK);
+  }
+
+  return mal_ctx_send_message(mal_endpoint_get_mal_ctx(mal_endpoint), mal_endpoint, message);
+}
+
 
 // Must be compliant with MAL virtual function.
 int malzmq_ctx_destroy_message(void *self, mal_message_t *mal_message) {

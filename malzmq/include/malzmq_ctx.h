@@ -1,4 +1,28 @@
 /*
+ * The MIT License (MIT)
+ * 
+ * Copyright (c) 2016 CNES
+ * 
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ * 
+ * The above copyright notice and this permission notice shall be included in all
+ * copies or substantial portions of the Software.
+ * 
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
+ */
+
+/*
  */
 
 #ifndef __MALZMQ_CTX_H_INCLUDED__
@@ -49,6 +73,10 @@ int malzmq_ctx_recv_message(void *self, mal_endpoint_t *mal_endpoint,
     mal_message_t **message);
 
 // Must be compliant with corresponding MAL virtual function
+int malzmq_ctx_endpoint_init_operation(mal_endpoint_t *mal_endpoint,
+    mal_message_t *message, mal_uri_t *uri_to, bool set_tid);
+
+// Must be compliant with corresponding MAL virtual function
 int malzmq_ctx_destroy_message(void *self, mal_message_t *mal_message);
 
 // Must be compliant with MAL virtual function: void *self
@@ -85,15 +113,6 @@ int malzmq_ctx_poller_wait(
 
 //  Self test of this class
 void malzmq_ctx_test(bool verbose);
-
-int malzmq_ctx_mal_socket_handle(zloop_t *loop, zmq_pollitem_t *poller,
-    malzmq_ctx_t *self, zmsg_t *zmsg, bool isPubsub);
-
-int malzmq_ctx_mal_pubsub_socket_handle(zloop_t *loop, zmq_pollitem_t *poller,
-    void *arg);
-
-int malzmq_ctx_mal_standard_socket_handle(zloop_t *loop, zmq_pollitem_t *poller,
-    void *arg);
 
 #ifdef __cplusplus
 }

@@ -1,3 +1,27 @@
+/*
+ * The MIT License (MIT)
+ * 
+ * Copyright (c) 2016 CNES
+ * 
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ * 
+ * The above copyright notice and this permission notice shall be included in all
+ * copies or substantial portions of the Software.
+ * 
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
+ */
+
 #include "malsplitbinary.h"
 
 mal_decoder_t *malsplitbinary_decoder_new() {
@@ -110,8 +134,8 @@ int malsplitbinary_decoder_decode_boolean(mal_decoder_t *self,
     void *cursor, mal_boolean_t *result) {
   int rc = 0;
   char *bitfield = malsplitbinary_cursor_get_bitfield_ptr((malsplitbinary_cursor_t *) cursor);
-  int v = bitfield[(((malsplitbinary_cursor_t *) cursor)->bitfield_idx) >> 3];
-  *result = (v >> ((malsplitbinary_cursor_t *) cursor)->bitfield_idx % 8) & 1;
+  unsigned int v = bitfield[(((malsplitbinary_cursor_t *) cursor)->bitfield_idx) >> 3];
+  (*result) = (v >> ((malsplitbinary_cursor_t *) cursor)->bitfield_idx % 8) & 1;
   if (*result == 1)
     ((malsplitbinary_cursor_t *) cursor)->most_significant = ((malsplitbinary_cursor_t *) cursor)->bitfield_idx;
   ((malsplitbinary_cursor_t *) cursor)->bitfield_idx++;
@@ -223,7 +247,7 @@ int malsplitbinary_decoder_decode_attribute(mal_decoder_t *malsplitbinary_decode
   return rc;
 }
 
-// TODO (AF): The malsplitbinary decoding functions should be private and only used through
+// NOTE: The malsplitbinary decoding functions should be private and only used through
 // the mal_decoder_t structure.
 
 void malsplitbinary_init_decode_functions(mal_decoder_t *self) {

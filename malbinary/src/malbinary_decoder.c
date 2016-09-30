@@ -1,3 +1,27 @@
+/*
+ * The MIT License (MIT)
+ * 
+ * Copyright (c) 2016 CNES
+ * 
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ * 
+ * The above copyright notice and this permission notice shall be included in all
+ * copies or substantial portions of the Software.
+ * 
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
+ */
+
 #include "malbinary.h"
 
 mal_decoder_t *malbinary_decoder_new(bool varint_supported) {
@@ -63,14 +87,14 @@ long malbinary_read64(void *cursor) {
 
 unsigned short malbinary_read_uvarshort(void *cursor) {
   unsigned int index = ((malbinary_cursor_t *) cursor)->body_offset;
-  unsigned int value = 0;
+  unsigned short value = 0;
   int i;
-  int b;
+  short b;
   for (i = 0; ((b = ((malbinary_cursor_t *) cursor)->body_ptr[index++]) & 0x80) != 0; i += 7) {
     value |= (b & 0x7f) << i;
   }
   ((malbinary_cursor_t *) cursor)->body_offset = index;
-  return (value | b << i) & 0xFFFF;
+  return value | b << i;
 }
 
 unsigned int malbinary_read_uvarint(void *cursor) {
@@ -98,18 +122,34 @@ unsigned long malbinary_read_uvarlong(void *cursor) {
 }
 
 short malbinary_read_varshort(void *cursor) {
-  unsigned int i = malbinary_read_uvarint(cursor);
-  return ((i >> 1) ^ -(i & 1));
+  unsigned short i = malbinary_read_uvarshort(cursor);
+  short s = 0;
+  if ((i&0x1) != 0)
+    s = -1;
+  short temp = i >> 1;
+  temp = temp ^ s;
+  return temp;
 }
 
 int malbinary_read_varint(void *cursor) {
   unsigned int i = malbinary_read_uvarint(cursor);
-  return ((i >> 1) ^ -(i & 1));
+  int s = 0;
+  if ((i&0x1) != 0)
+    s = 0xFFFFFFFF;
+  int temp = i >> 1;
+  temp = temp ^ s;
+  return temp;
 }
 
 long malbinary_read_varlong(void *cursor) {
   unsigned long l = malbinary_read_uvarlong(cursor);
-  return ((l >> 1) ^ -(l & 1));
+  long s = 0L;
+  if ((l&0x1) != 0)
+    s = 0xFFFFFFFFFFFFFFFFL;
+  long temp = l >> 1;
+
+  temp = temp ^ s;
+  return temp;
 }
 
 char *malbinary_read_str(mal_decoder_t *self, void *cursor) {
@@ -119,6 +159,14 @@ char *malbinary_read_str(mal_decoder_t *self, void *cursor) {
   else
     length = malbinary_read32(cursor);
 
+  if (length < 0) {
+    char *array = (char *) malloc(1);
+    if (array == NULL)
+      return NULL;
+    array[0] = '\0';
+    return array;
+  }
+
   char *array = (char *) malloc(length + 1);
   if (array == NULL)
     return NULL;
@@ -127,7 +175,6 @@ char *malbinary_read_str(mal_decoder_t *self, void *cursor) {
   array[length] = '\0';
 
   ((malbinary_cursor_t *) cursor)->body_offset += length;
-
   return array;
 }
 
@@ -230,10 +277,17 @@ int malbinary_decoder_decode_blob(mal_decoder_t *self, void *cursor, mal_blob_t 
     length = malbinary_read_uvarint(cursor);
   else
     length = malbinary_read32(cursor);
-  mal_blob_t *blob = mal_blob_new(length);
-  char *blob_content = mal_blob_get_content(blob);
-  malbinary_read_array(blob_content, length, cursor);
-  (*result) = blob;
+
+  if (length < 0) {
+    (*result) = NULL;
+  } else if (length == 0) {
+    (*result) = mal_blob_new(0);
+  } else {
+    mal_blob_t *blob = mal_blob_new(length);
+    char *blob_content = mal_blob_get_content(blob);
+    malbinary_read_array(blob_content, length, cursor);
+    (*result) = blob;
+  }
   return rc;
 }
 
@@ -306,9 +360,7 @@ int malbinary_decoder_decode_attribute_tag(mal_decoder_t *self, void *cursor, un
 }
 
 int malbinary_decoder_decode_duration(mal_decoder_t *self, void *cursor, mal_duration_t *result) {
-  int rc = 0;
-  //TODO: malbinary_decoder_decode_duration
-  return rc;
+  return malbinary_decoder_decode_float(self, cursor, result);
 }
 
 float intBitsToFloat(int x) {
@@ -370,9 +422,7 @@ int malbinary_decoder_decode_ulong(mal_decoder_t *self, void *cursor, mal_ulong_
 }
 
 int malbinary_decoder_decode_finetime(mal_decoder_t *self, void *cursor, mal_finetime_t *result) {
-  int rc = 0;
-  //TODO: malbinary_decoder_decode_finetime
-  return rc;
+  return malbinary_decoder_decode_ulong(self, cursor, result);
 }
 
 int malbinary_decoder_decode_attribute(mal_decoder_t *decoder, void *cursor,
@@ -440,7 +490,7 @@ int malbinary_decoder_decode_attribute(mal_decoder_t *decoder, void *cursor,
   return rc;
 }
 
-// TODO (AF): The malbinary decoding functions should be private and only used through
+// NOTE: The malbinary decoding functions should be private and only used through
 // the mal_decoder_t structure.
 
 void malbinary_init_decode_functions(mal_decoder_t *self) {

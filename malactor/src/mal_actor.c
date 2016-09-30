@@ -1,3 +1,27 @@
+/*
+ * The MIT License (MIT)
+ * 
+ * Copyright (c) 2016 CNES
+ * 
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ * 
+ * The above copyright notice and this permission notice shall be included in all
+ * copies or substantial portions of the Software.
+ * 
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
+ */
+
 /* */
 #include "malactor.h"
 
@@ -24,9 +48,8 @@ static void mal_actor_run(zsock_t *pipe, void *args);
 typedef struct {
   void *malzmq_ctx;
   mal_endpoint_t *mal_endpoint;
-
   void *socket;
-  void *remote_socket_table;
+  void *padding;
 } actor_endpoint_data_t;
 
 mal_endpoint_t *mal_actor_endpoint_create(
@@ -35,7 +58,7 @@ mal_endpoint_t *mal_actor_endpoint_create(
   actor_endpoint_data_t *actor_endpoint_data = (actor_endpoint_data_t *) malloc(sizeof(actor_endpoint_data_t));
   actor_endpoint_data->malzmq_ctx = mal_ctx_get_binding(mal_ctx);
   actor_endpoint_data->socket = pipe;
-  actor_endpoint_data->remote_socket_table = NULL;
+  actor_endpoint_data->padding = NULL;
 
   mal_endpoint_t *actor_endpoint = mal_endpoint_actor(mal_ctx, actor_endpoint_data);
 
@@ -241,7 +264,9 @@ static void mal_actor_run(zsock_t *pipe, void *args) {
   mal_routing_destroy(&actor_data->router);
   mal_endpoint_destroy(&actor_data->actor_endpoint);
 
-//  zactor_destroy((zactor_t **) &actor_data->actor);
+	// Try to self-destroy in order to better clean ZMQ resources.
+  clog_debug(mal_logger, "mal_actor_run: end.\n");
+  zactor_destroy((zactor_t **) &actor_data->actor);
 }
 
 void mal_actor_test(bool verbose) {

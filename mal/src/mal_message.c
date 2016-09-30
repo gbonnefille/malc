@@ -1,4 +1,28 @@
 /*
+ * The MIT License (MIT)
+ * 
+ * Copyright (c) 2016 CNES
+ * 
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ * 
+ * The above copyright notice and this permission notice shall be included in all
+ * copies or substantial portions of the Software.
+ * 
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
+ */
+
+/*
  */
 
 #include "mal.h"
@@ -7,6 +31,7 @@ struct _mal_message_t {
   mal_uri_t *uri_from;
   mal_blob_t *authentication_id;
   mal_uri_t *uri_to;
+  mal_uoctet_t encoding_id;
   mal_time_t timestamp;
   mal_qoslevel_t qoslevel;
   mal_uinteger_t priority;
@@ -117,6 +142,15 @@ void mal_message_destroy(mal_message_t **self_p, mal_ctx_t *mal_ctx) {
 
     *self_p = NULL;
   }
+}
+
+mal_uoctet_t mal_message_get_encoding_id(mal_message_t *self) {
+  return self->encoding_id;
+}
+
+void mal_message_set_encoding_id(mal_message_t *self,
+    mal_uoctet_t encoding_id) {
+  self->encoding_id = encoding_id;
 }
 
 mal_ushort_t mal_message_get_service_area(mal_message_t *self) {

@@ -1,4 +1,28 @@
 /*
+ * The MIT License (MIT)
+ * 
+ * Copyright (c) 2016 CNES
+ * 
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ * 
+ * The above copyright notice and this permission notice shall be included in all
+ * copies or substantial portions of the Software.
+ * 
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
+ */
+
+/*
  */
 
 #include "mal.h"
@@ -14,6 +38,7 @@ struct _mal_ctx_t {
   mal_binding_ctx_poller_del_endpoint_fn *poller_del_endpoint;
   mal_binding_ctx_send_message_fn *send_message;
   mal_binding_ctx_recv_message_fn *recv_message;
+  mal_binding_ctx_init_operation_fn *init_operation;
   mal_binding_ctx_poller_wait_fn *poller_wait;
   mal_binding_ctx_destroy_message_fn *destroy_message;
   mal_binding_ctx_start_fn *mal_binding_ctx_start;
@@ -36,6 +61,7 @@ mal_ctx_t *mal_ctx_new() {
   self->poller_del_endpoint = NULL;
   self->send_message = NULL;
   self->recv_message = NULL;
+  self->init_operation = NULL;
   self->poller_wait = NULL;
   self->destroy_message = NULL;
   self->mal_binding_ctx_start = NULL;
@@ -66,6 +92,7 @@ void mal_ctx_set_binding(
     mal_binding_ctx_poller_del_endpoint_fn *poller_del_endpoint,
     mal_binding_ctx_send_message_fn *send_message,
     mal_binding_ctx_recv_message_fn *recv_message,
+    mal_binding_ctx_init_operation_fn *init_operation,
     mal_binding_ctx_poller_wait_fn *poller_wait,
     mal_binding_ctx_destroy_message_fn *destroy_message,
     mal_binding_ctx_start_fn *mal_binding_ctx_start,
@@ -81,6 +108,7 @@ void mal_ctx_set_binding(
   self->poller_del_endpoint = poller_del_endpoint;
   self->send_message = send_message;
   self->recv_message = recv_message;
+  self->init_operation = init_operation;
   self->poller_wait = poller_wait;
   self->destroy_message = destroy_message;
   self->mal_binding_ctx_start = mal_binding_ctx_start;
@@ -137,6 +165,11 @@ int mal_ctx_recv_message(
   return self->recv_message(self->mal_binding_ctx, mal_endpoint, message);
 }
 
+int mal_ctx_init_operation(mal_ctx_t *self, mal_endpoint_t *mal_endpoint,
+    mal_message_t *message, mal_uri_t *uri_to, bool set_tid) {
+  return self->init_operation(mal_endpoint, message, uri_to, set_tid);
+}
+
 int mal_ctx_poller_wait(
     mal_ctx_t *self, mal_poller_t *mal_poller,
     mal_endpoint_t **endpoint,
@@ -151,6 +184,7 @@ int mal_ctx_destroy_message(mal_ctx_t *self, mal_message_t *message) {
 int mal_ctx_start(mal_ctx_t *self) {
   return self->mal_binding_ctx_start(self->mal_binding_ctx);
 }
+
 int mal_ctx_stop(mal_ctx_t *self) {
   return self->mal_binding_ctx_stop(self->mal_binding_ctx);
 }

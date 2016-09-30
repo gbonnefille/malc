@@ -1,3 +1,27 @@
+/*
+ * The MIT License (MIT)
+ * 
+ * Copyright (c) 2016 CNES
+ * 
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ * 
+ * The above copyright notice and this permission notice shall be included in all
+ * copies or substantial portions of the Software.
+ * 
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
+ */
+
 /* */
 #include "malzmq.h"
 
@@ -346,7 +370,7 @@ int malzmq_encode_string(
       clog_error(malzmq_logger, "malzmq_encode_string, bad optional key: %d.", opt_mdk);
       return -1;
     }
-    // TODO: varint
+    // TODO: varint ?
     malbinary_write32(opt_mdk, cursor);
   } else {
     // check length is not too large
@@ -518,7 +542,8 @@ int malzmq_decode_uri(malzmq_mapping_directory_t *mapping_directory,
 int malzmq_decode_uri_to(malzmq_header_t *malzmq_header,
     mal_decoder_t *decoder, char *bytes, unsigned int length,
     mal_uri_t **uri_to) {
-  // TODO (AF): Use virtual allocation and initialization functions from encoder.
+  // Note: We could use virtual allocation and initialization functions from encoder
+  // rather than malbinary interface.
   malbinary_cursor_t cursor;
   malbinary_cursor_init(&cursor, bytes, length, 0);
   

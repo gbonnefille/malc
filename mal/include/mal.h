@@ -1,4 +1,28 @@
 /*
+ * The MIT License (MIT)
+ * 
+ * Copyright (c) 2016 CNES
+ * 
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ * 
+ * The above copyright notice and this permission notice shall be included in all
+ * copies or substantial portions of the Software.
+ * 
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
+ */
+
+/*
  */
 
 #ifndef __MAL_H_INCLUDED__
@@ -216,6 +240,9 @@ typedef int mal_binding_ctx_recv_message_fn(
     void *mal_binding_ctx,
     mal_endpoint_t *mal_endpoint, mal_message_t **message);
 
+typedef int mal_binding_ctx_init_operation_fn(
+    mal_endpoint_t *mal_endpoint, mal_message_t *message, mal_uri_t *uri_to, bool set_tid);
+
 // Function to be provided by a MAL binding to wait on a MAL poller
 typedef int mal_binding_ctx_poller_wait_fn(
     void *mal_binding_ctx,
@@ -243,7 +270,15 @@ int mal_publish_register_add_encoding_length_entitykey_list(
     mal_encoder_t *encoder, mal_entitykey_list_t *element,
     void *cursor);
 
+int mal_publish_deregister_add_encoding_length_entitykey_list(
+    mal_encoder_t *encoder, mal_entitykey_list_t *element,
+    void *cursor);
+
 int mal_publish_register_encode_entitykey_list(
+    void *cursor, mal_encoder_t *encoder,
+    mal_entitykey_list_t *element);
+
+int mal_publish_deregister_encode_entitykey_list(
     void *cursor, mal_encoder_t *encoder,
     mal_entitykey_list_t *element);
 

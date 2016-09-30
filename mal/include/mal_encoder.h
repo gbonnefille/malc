@@ -1,4 +1,28 @@
 /*
+ * The MIT License (MIT)
+ * 
+ * Copyright (c) 2016 CNES
+ * 
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ * 
+ * The above copyright notice and this permission notice shall be included in all
+ * copies or substantial portions of the Software.
+ * 
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
+ */
+
+/*
  */
 
 #ifndef MAL_INCLUDE_MAL_ENCODER_H_
@@ -39,7 +63,7 @@ void mal_encoder_cursor_assert(mal_encoder_t *self, void *cursor);
 /* Encoding length functions */
 
 int mal_encoder_add_string_encoding_length(mal_encoder_t *self, mal_string_t *to_encode, void *cursor);
-int mal_encoder_add_presence_flag_encoding_length( mal_encoder_t *self, void *cursor, unsigned int length);
+int mal_encoder_add_presence_flag_encoding_length( mal_encoder_t *self, unsigned int length, void *cursor);
 int mal_encoder_add_short_form_encoding_length(mal_encoder_t *self, long to_encode, void *cursor);
 int mal_encoder_add_integer_encoding_length(mal_encoder_t *self, mal_integer_t to_encode, void *cursor);
 int mal_encoder_add_identifier_encoding_length(mal_encoder_t *self, mal_identifier_t *to_encode, void *cursor);
@@ -202,7 +226,7 @@ typedef void mal_encoder_cursor_assert_fn(void *cursor);
 /* Encoding length functions */
 
 typedef int mal_encoder_add_string_encoding_length_fn(mal_encoder_t *self, mal_string_t *to_encode, void *cursor);
-typedef int mal_encoder_add_presence_flag_encoding_length_fn( mal_encoder_t *self, void *cursor, unsigned int length);
+typedef int mal_encoder_add_presence_flag_encoding_length_fn( mal_encoder_t *self, unsigned int length, void *cursor);
 typedef int mal_encoder_add_short_form_encoding_length_fn(mal_encoder_t *self, long to_encode, void *cursor);
 typedef int mal_encoder_add_integer_encoding_length_fn(mal_encoder_t *self, mal_integer_t to_encode, void *cursor);
 typedef int mal_encoder_add_identifier_encoding_length_fn(mal_encoder_t *self, mal_identifier_t *to_encode, void *cursor);
@@ -500,13 +524,12 @@ typedef void mal_encoder_initialize_functions_fn(
  */
 mal_encoder_initialize_functions_fn mal_encoder_initialize_functions;
 
-// TODO (AF): This structure should be private to the MAL:
+// NOTE: This structure should be private to the MAL:
 //  -1- The encoding module initializes it through the mal_encoder_initialize_fn.
 //  -2- The users (consumer, provider, stubs) uses it through the mal_encoder functions.
 
 struct _mal_encoder_t {
   int encoding_format_code;
-  // TODO: varint limited to the last parameter in the MAL body
   bool varint_supported;
   clog_logger_t logger;
 

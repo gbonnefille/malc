@@ -1,4 +1,28 @@
 /*
+ * The MIT License (MIT)
+ * 
+ * Copyright (c) 2016 CNES
+ * 
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ * 
+ * The above copyright notice and this permission notice shall be included in all
+ * copies or substantial portions of the Software.
+ * 
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
+ */
+
+/*
  */
 
 #ifndef __MALTCP_H_INCLUDED__
@@ -44,15 +68,22 @@ int maltcp_encode_message(maltcp_header_t *maltcp_header,
 
 int maltcp_decode_message(maltcp_header_t *maltcp_header,
     mal_message_t *message, mal_decoder_t *decoder, void *cursor,
-    mal_uoctet_t *encoding_id, mal_uinteger_t *mal_message_length);
+    mal_uinteger_t *mal_message_length);
 
-int maltcp_decode_uri_to(maltcp_header_t *maltcp_header,
-	mal_decoder_t *decoder, char *bytes, unsigned int length, mal_uri_t **uri_to);
+int maltcp_decode_uris(maltcp_header_t *maltcp_header,
+	mal_decoder_t *decoder, char *bytes, unsigned int length,
+	mal_uri_t **uri_to,
+  mal_uri_t **uri_from);
 
 void maltcp_test(bool verbose);
 
 mal_tcp_message_t *maltcp_new_mal_tcp_message();
 mal_tcp_message_t *maltcp_get_mal_tcp_message(maltcp_header_t *mal_header, mal_message_t *message);
+
+static const char MALTCP_PROTOCOL[] = "maltcp";
+static const char MALTCP_URI[] = "maltcp://";
+
+static const int FIXED_HEADER_LENGTH = 23;
 
 //  Public API classes
 #include "maltcp_ctx.h"

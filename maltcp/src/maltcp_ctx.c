@@ -1,22 +1,42 @@
+/*
+ * The MIT License (MIT)
+ * 
+ * Copyright (c) 2016 CNES
+ * 
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ * 
+ * The above copyright notice and this permission notice shall be included in all
+ * copies or substantial portions of the Software.
+ * 
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
+ */
+
 /* */
 #include "maltcp.h"
 
 static const char ZLOOP_ENDPOINTS_SOCKET_URI[] = "inproc://zloop.endpoints";
 
-static const char MALZMQ_PROTOCOL[] = "maltcp";
-
-static const int HEADER_LENGTH = 23;
+static const int BACKLOG = 5;
 
 struct _maltcp_ctx_t {
   mal_ctx_t *mal_ctx;
   zctx_t *zmq_ctx;
-  maltcp_mapping_uri_t *mapping_uri;
   char *hostname;
   char *port;
-  void *mal_socket;         // server socket listening to remote mal contexts
-  //PUBSUB TODO: remove
-  //void *mal_pubsub_socket;  // server socket listening to remote mal contexts
-  void *endpoints_socket;   // inproc connected to endpoints
+  int mal_socket;         // TCP server socket listening to remote mal contexts
+  zhash_t *cnx_table;     // TCP client sockets connected to remote mal contexts, key = short URI
+  void *endpoints_socket; // inproc connected to endpoints
   zloop_t *zloop;
   maltcp_header_t *maltcp_header;
   mal_encoder_t *encoder;
@@ -39,9 +59,8 @@ mal_decoder_t *maltcp_get_decoder(maltcp_ctx_t *self) {
 typedef struct {
   maltcp_ctx_t *maltcp_ctx;
   mal_endpoint_t *mal_endpoint;
-
   void *socket;
-  zhash_t *remote_socket_table; // client sockets connected to remote mal contexts, key = uri
+  void *padding; // unused but defined in malzmq context
 } maltcp_endpoint_data_t;
 
 //  --------------------------------------------------------------------------
@@ -113,6 +132,7 @@ int maltcp_del_endpoint(maltcp_poller_data_t *poller_data, mal_endpoint_t *endpo
   return 0;
 }
 
+// TODO (AF): Replace by get_host_from_uri and get_port_from_uri.
 char **get_protocol_host_port(mal_uri_t *uri) {
   char **split = (char **) calloc(3, sizeof(char *));
   split[0] = strtok(uri, "/:");
@@ -121,6 +141,7 @@ char **get_protocol_host_port(mal_uri_t *uri) {
   return split;
 }
 
+// TODO (AF): Replace by get_service_from_uri.
 mal_uri_t *get_short_uri(mal_uri_t *uri) {
   // Get the "/<consumer id>" part
   size_t uri_length = strlen(uri);
@@ -138,149 +159,9 @@ mal_uri_t *get_short_uri(mal_uri_t *uri) {
   return uri+short_uri_length+1;
 }
 
-// Point-to-Point protocol used, should be tcp.
-#define PTP_PROTOCOL         "tcp"
-#define PTP_PROTOCOL_LENGTH  3
-
-//PUBSUB TODO: remove
-// Publish/Subscribe protocol used, should be tcp, epgm or pgm
-//#define PUBSUB_PROTOCOL         "tcp"
-//#define PUBSUB_PROTOCOL_LENGTH  3
-
-mal_uri_t *get_uri_to(maltcp_ctx_t *self, mal_message_t *message) {
-  if (self->mapping_uri && self->mapping_uri->getzmquri_to_fn) {
-    return self->mapping_uri->getzmquri_to_fn(message);
-  } else {
-    mal_uri_t *uri_to = strdup(mal_message_get_uri_to(message));
-
-    mal_uri_t *socket_uri = NULL;
-
-    char **split = get_protocol_host_port(uri_to);
-    char *hostname = split[1];
-    char *port = split[2];
-
-    if (mal_message_get_interaction_stage(message) != MAL_IP_STAGE_PUBSUB_PUBLISH) {
-      // This not the publish URI, ex: tcp://192.168.1.46:5555
-      socket_uri = (mal_uri_t *) malloc(PTP_PROTOCOL_LENGTH + 4 + strlen(port) + 1);
-      // Need to set the final '\0' before using strcat
-      socket_uri[0] = '\0';
-      strcat(socket_uri, PTP_PROTOCOL "://");
-      strcat(socket_uri, hostname);
-      strcat(socket_uri, ":");
-      strcat(socket_uri, port);
-    }
-    /* PUBSUB TODO: remove
-     else {
-      char *mcast_addr = NULL; // ex: 224.0.0.251
-      char *network_interface = NULL; // ex: eth0
-
-      // This the publish URI, ex: epgm://eth0;224.0.0.251:5555
-      char pubsub_port[6];
-      sprintf(pubsub_port,"%d", atoi(port) + 1);
-
-      if (strcmp(PUBSUB_PROTOCOL, PROTOCOL_PGM) == 0 || strcmp(PUBSUB_PROTOCOL, PROTOCOL_EPGM) == 0) {
-        size_t uri_length = PUBSUB_PROTOCOL_LENGTH + strlen(network_interface) + 4 + strlen(pubsub_port);
-        if (mcast_addr)
-          uri_length += strlen(mcast_addr) + 1;
-        socket_uri = (mal_uri_t *) malloc(uri_length * sizeof(mal_uri_t *) + 1);
-
-        // Need to set the final '\0' before using strcat
-        socket_uri[0] = '\0';
-        strcat(socket_uri, PUBSUB_PROTOCOL);
-        strcat(socket_uri, "://");
-        strcat(socket_uri, network_interface);
-        strcat(socket_uri, ";");
-        strcat(socket_uri, mcast_addr);
-        strcat(socket_uri, ":");
-        strcat(socket_uri, pubsub_port);
-      } else {
-        size_t uri_length = PUBSUB_PROTOCOL_LENGTH + strlen(hostname) + 5 + strlen(pubsub_port);
-        socket_uri = (mal_uri_t *) malloc(uri_length * sizeof(mal_uri_t *) + 1);
-        // Need to set the final '\0' before using strcat
-        socket_uri[0] = '\0';
-        strcat(socket_uri, PUBSUB_PROTOCOL);
-        strcat(socket_uri, ":// *:");
-        strcat(socket_uri, pubsub_port);
-      }
-    }
-    */
-
-    free(uri_to);
-    return socket_uri;
-  }
-}
-
-mal_uri_t *get_ptp_uri(maltcp_ctx_t *self, mal_uri_t *uri) {
-  if (self->mapping_uri && self->mapping_uri->get_p2p_zmquri_fn) {
-    return self->mapping_uri->get_p2p_zmquri_fn(uri);
-  } else {
-    char *dupuri = strdup(uri);
-
-    char **split = get_protocol_host_port(dupuri);
-    char *port = split[2];
-
-    mal_uri_t *ptp_uri = (mal_uri_t *) malloc(PTP_PROTOCOL_LENGTH + 5 + strlen(port) + 1);
-    // Need to set the final '\0' before using strcat
-    ptp_uri[0] = '\0';
-    strcat(ptp_uri, PTP_PROTOCOL "://*:");
-    strcat(ptp_uri, port);
-
-    free(dupuri);
-    return ptp_uri;
-  }
-}
-
-//PUBSUB TODO: remove
-/*
-mal_uri_t *get_ps_uri(maltcp_ctx_t *self, mal_uri_t *uri) {
-  if (self->mapping_uri && self->mapping_uri->get_ps_zmquri_fn) {
-    return self->mapping_uri->get_ps_zmquri_fn(uri);
-  } else {
-    char *dupuri = strdup(uri);
-
-    char *mcast_addr = NULL; // ex: 224.0.0.251
-    char **split = get_protocol_host_port(dupuri);
-    char *hostname = split[1];
-    char *port = split[2];
-    char pubsub_port[6];
-    sprintf(pubsub_port,"%d", atoi(port) + 1);
-
-    mal_uri_t *ps_uri = NULL;
-    if (strcmp(PUBSUB_PROTOCOL, PROTOCOL_PGM) == 0 || strcmp(PUBSUB_PROTOCOL, PROTOCOL_EPGM) == 0) {
-      size_t uri_length = strlen(PUBSUB_PROTOCOL) + strlen(hostname) + 4 + strlen(pubsub_port);
-      if (mcast_addr) {
-        uri_length += strlen(mcast_addr) + 1;
-      }
-      ps_uri = (mal_uri_t *) malloc(uri_length * sizeof(mal_uri_t *) + 1);
-      // Need to set the final '\0' before using strcat
-      ps_uri[0] = '\0';
-      //epgm://192.168.1.46;224.0.0.251:5555
-      strcat(ps_uri, PUBSUB_PROTOCOL "://");
-      strcat(ps_uri, hostname);
-      strcat(ps_uri, ";");
-      strcat(ps_uri, mcast_addr);
-      strcat(ps_uri, ":");
-      strcat(ps_uri, pubsub_port);
-    } else {
-      size_t uri_length = strlen(PUBSUB_PROTOCOL) + strlen(hostname) + 4 + strlen(pubsub_port);
-      ps_uri = (mal_uri_t *) malloc(uri_length * sizeof(mal_uri_t *) + 1);
-      // Need to set the final '\0' before using strcat
-      ps_uri[0] = '\0';
-      // tcp://192.168.1.46:5555
-      strcat(ps_uri, PUBSUB_PROTOCOL "://");
-      strcat(ps_uri, hostname);
-      strcat(ps_uri, ":");
-      strcat(ps_uri, pubsub_port);
-    }
-
-    free(dupuri);
-    return ps_uri;
-  }
-}
-*/
-
 mal_uinteger_t maltcp_decode_body_length(char *bytes, unsigned int length) {
-  // TODO (AF): Use virtual allocation and initialization functions from encoder.
+  // Note: We could use virtual allocation and initialization functions from encoder
+  // rather than malbinary interface.
   malbinary_cursor_t cursor;
 
   // 'URI To' offset
@@ -299,145 +180,307 @@ mal_uinteger_t maltcp_decode_body_length(char *bytes, unsigned int length) {
   return malbinary_read32(&cursor);
 }
 
-// zloop_fn interface for standard socket
-int maltcp_ctx_mal_standard_socket_handle(zloop_t *loop, zmq_pollitem_t *poller, void *arg) {
-  maltcp_ctx_t *self = (maltcp_ctx_t *) arg;
+// Functions needed to handle TCP connection hashtable.
 
-  mal_uoctet_t id[256];
+typedef struct maltcp_ctx_connection {
+  int socket;
+  pthread_mutex_t lock;
+} maltcp_ctx_connection_t;
 
-  mal_uinteger_t mal_msg_bytes_length = -1;
-  zmq_msg_t zmsg;
-  char *data;
-  mal_uinteger_t offset = 0;
+maltcp_ctx_connection_t *maltcp_ctx_connection_create(int socket) {
+  maltcp_ctx_connection_t *cnx_ptr = (maltcp_ctx_connection_t*) malloc(sizeof(maltcp_ctx_connection_t));
+  // Initialize the mutex
+  if (pthread_mutex_init(&cnx_ptr->lock, NULL) != 0) {
+    clog_error(maltcp_logger, "maltcp_ctx_connection_create: failed to initialize mutex.");
+    free(cnx_ptr);
+    return NULL;
+  }
+  cnx_ptr->socket = socket;
+  return cnx_ptr;
+}
 
-  while (true) {
-    int rc = zmq_recv(self->mal_socket, id, 256, 0);
-    clog_debug(maltcp_logger, "maltcp_ctx_mal_standard_socket_handle: zmq_recv (identity) = %d bytes\n", rc);
-    if (rc <= 0) return -1;
+int maltcp_ctx_connection_register_incoming(maltcp_ctx_t *self, int socket, char *peer_uri) {
+  maltcp_ctx_connection_t *cnx_ptr = (maltcp_ctx_connection_t *) zhash_lookup(self->cnx_table, peer_uri);
+  if (cnx_ptr != NULL) {
+    clog_warning(maltcp_logger, "maltcp_ctx_register_incoming_cnx#1: %s already registered.\n", peer_uri);
+    return 0;
+  }
 
-    // Create an empty ØMQ message to hold the message part
-    zmq_msg_t msg;
-    rc = zmq_msg_init(&msg);
-    assert(rc == 0);
+  cnx_ptr = maltcp_ctx_connection_create(socket);
+  if (cnx_ptr == NULL) return -1;
 
-    //  Block until a message is available to be received from socket
-    rc = zmq_recvmsg(self->mal_socket, &msg, 0);
-    clog_debug(maltcp_logger, "maltcp_ctx_mal_standard_socket_handle: receive = %d bytes\n", rc);
-    if (rc < 0) return -1;
+  char *uri = (char *) malloc(strlen(peer_uri) +1);
+  strcpy(uri, peer_uri);
+  if (zhash_insert(self->cnx_table, uri, cnx_ptr) != 0) {
+    // A connection is already registered for this URI.
+    clog_warning(maltcp_logger, "maltcp_ctx_register_incoming_cnx#2: %s already registered.\n", uri);
+    free(uri);
+    free(cnx_ptr);
+    return 0;
+  }
+  zhash_freefn(self->cnx_table, uri, free);
 
-    if (rc == 0)
+  return 0;
+}
+
+maltcp_ctx_connection_t *maltcp_ctx_connection_register_outgoing(maltcp_ctx_t *self, int socket, char *peer_uri) {
+  maltcp_ctx_connection_t *cnx_ptr = maltcp_ctx_connection_create(socket);
+  if (cnx_ptr != NULL) {
+    char *uri = (char *) malloc(strlen(peer_uri) +1);
+    strcpy(uri, peer_uri);
+    zhash_update(self->cnx_table, uri, cnx_ptr);
+    zhash_freefn(self->cnx_table, uri, free);
+  }
+  return cnx_ptr;
+}
+
+int maltcp_ctx_connection_remove_socket(maltcp_ctx_t *self, int socket) {
+  clog_debug(maltcp_logger, "maltcp_ctx_connection_remove_socket(%d).\n", socket);
+  maltcp_ctx_connection_t *cnx_ptr =  (maltcp_ctx_connection_t*) zhash_first(self->cnx_table);
+  while (cnx_ptr) {
+    if (cnx_ptr->socket == socket) {
+      // Close registered TCP connections
+      clog_debug(maltcp_logger, "maltcp_ctx_connection_remove_socket: close and remove socket.\n");
+      close(cnx_ptr->socket);
+      pthread_mutex_destroy(&cnx_ptr->lock);
+      zhash_delete(self->cnx_table, zhash_cursor(self->cnx_table));
       return 0;
-
-    // TODO (AF): There is an issue if the first read returns less than HEADER_LENGTH bytes !!
-    if (mal_msg_bytes_length == -1) {
-      assert(rc >= HEADER_LENGTH);
-
-      // First read, get the message size in the header
-      mal_msg_bytes_length = maltcp_decode_body_length((char *) zmq_msg_data(&msg), offset+rc);
-      clog_debug(maltcp_logger, "maltcp_ctx_mal_standard_socket_handle: should read = %d bytes\n", mal_msg_bytes_length);
-
-      if (rc == mal_msg_bytes_length) {
-        // The message is completely received in one shot.
-        clog_debug(maltcp_logger, "maltcp_ctx_mal_standard_socket_handle: whole message received, end.\n", rc);
-        zmsg = msg;
-        // Returns without closing the incoming message
-        break;
-      } else {
-        // There is more data to read allocates a message to contain the whole message.
-        zmq_msg_init_size(&zmsg, mal_msg_bytes_length);
-        data = (char*)zmq_msg_data(&zmsg);
-        offset = 0;
-      }
     }
-
-    // Copy data to the message
-    memcpy(data+offset, zmq_msg_data(&msg), rc);
-    offset += rc;
-    clog_debug(maltcp_logger, "maltcp_ctx_mal_standard_socket_handle: %d bytes received\n", offset);
-    zmq_msg_close(&msg);
-
-    if (offset == mal_msg_bytes_length) {
-      // The message is entirely read, return.
-      clog_debug(maltcp_logger, "maltcp_ctx_mal_standard_socket_handle: whole message received, end.\n");
-      break;
-    }
+    cnx_ptr = (maltcp_ctx_connection_t*) zhash_next(self->cnx_table);
   }
-
-  if (zmq_msg_size(&zmsg) > 0) {
-    clog_debug(maltcp_logger, "maltcp_ctx_mal_standard_socket_handle: receive message, size = %d\n", zmq_msg_size(&zmsg));
-    return maltcp_ctx_mal_socket_handle(loop, poller, self, &zmsg, mal_msg_bytes_length, false);
-  }
-
+  clog_debug(maltcp_logger, "maltcp_ctx_connection_remove_socket: socket (%d) not found.\n", socket);
   return 0;
 }
 
-/*
- * //PUBSUB TODO: remove ?
-// zloop_fn interface for pubsub socket
-int maltcp_ctx_mal_pubsub_socket_handle(zloop_t *loop, zmq_pollitem_t *poller, void *arg) {
+// This function is called when a message is ready to be read on the specified
+//connection. The connection is registered with the URI if needed.
+int maltcp_ctx_socket_receive(zloop_t *loop, zmq_pollitem_t *poller, void *arg) {
+  clog_debug(maltcp_logger, "maltcp_ctx_socket_receive\n");
   maltcp_ctx_t *self = (maltcp_ctx_t *) arg;
-  zmsg_t *zmsg = zmsg_recv(self->mal_pubsub_socket);
-  if (zmsg) {
-    clog_debug(maltcp_logger, "maltcp_ctx_mal_pubsub_socket_handle: received zmsg size = %d\n", zmsg_size(zmsg));
-    maltcp_ctx_mal_socket_handle(loop, poller, self, zmsg, true);
+
+  struct sockaddr src_addr;
+  socklen_t addr_size = sizeof(struct sockaddr_in);
+  if (getpeername(poller->fd, (struct sockaddr *)&src_addr, &addr_size) != 0) {
+    clog_error(maltcp_logger, "maltcp_ctx_socket_receive: getpeername failed\n");
+    return -1;
   }
-  return 0;
-}
-*/
 
-// This method handles messages received from standard or pubsub sockets.
-int maltcp_ctx_mal_socket_handle(zloop_t *loop, zmq_pollitem_t *poller,
-    maltcp_ctx_t *self, zmq_msg_t *zmsg, mal_uinteger_t msg_size, bool isPubsub) {
+  char src_ipstr[INET6_ADDRSTRLEN];
+  int src_port;
 
-  clog_debug(maltcp_logger, "maltcp_ctx: maltcp_ctx_mal_socket_handle\n");
-  if (zmsg != NULL) {
-    clog_debug(maltcp_logger, "maltcp_ctx: received msg, decoding...\n");
+  if (src_addr.sa_family == AF_INET) {
+      struct sockaddr_in *s = (struct sockaddr_in *)&src_addr;
+      src_port = ntohs(s->sin_port);
+      inet_ntop(AF_INET, &s->sin_addr, src_ipstr, sizeof src_ipstr);
+  } else { // AF_INET6
+      struct sockaddr_in6 *s = (struct sockaddr_in6 *)&src_addr;
+      src_port = ntohs(s->sin6_port);
+      inet_ntop(AF_INET6, &s->sin6_addr, src_ipstr, sizeof src_ipstr);
+  }
+  mal_uri_t peer_uri[strlen(src_ipstr) + 10 + 10 + 1];
+  sprintf((char*) peer_uri, "%s://%s:%d", MALTCP_PROTOCOL, src_ipstr, src_port);
+  clog_debug(maltcp_logger, "maltcp_ctx: TCP server socket receive from URI: %s\n", peer_uri);
 
-    mal_uri_t *uri_to;
-    if (maltcp_decode_uri_to(self->maltcp_header,
-        self->decoder, (char *) zmq_msg_data(zmsg), zmq_msg_size(zmsg), &uri_to) != 0) {
-      clog_error(maltcp_logger, "maltcp_ctx_mal_socket_handle, could not decode uri_to\n");
+  char header[FIXED_HEADER_LENGTH];
+  int nb = 0;
+  while (nb < FIXED_HEADER_LENGTH) {
+    int nbread = recv(poller->fd, &header[nb], FIXED_HEADER_LENGTH-nb, 0);
+    if (nbread == 0) {
+      clog_warning(maltcp_logger, "maltcp_ctx_socket_receive: TCP connection (%d) closed\n", poller->fd);
+      maltcp_ctx_connection_remove_socket(self, poller->fd);
+      zloop_poller_end(loop, poller);
+      close(poller->fd);
+      return 0;
+    }
+
+    if (nbread <0) {
+      clog_error(maltcp_logger, "maltcp_ctx_socket_receive: Error reading header on TCP connection\n");
+      maltcp_ctx_connection_remove_socket(self, poller->fd);
+      zloop_poller_end(loop, poller);
+      close(poller->fd);
       return -1;
     }
-
-    clog_debug(maltcp_logger, "maltcp_ctx: msg decoded.\n");
-
-    clog_debug(maltcp_logger, "maltcp_ctx: uri_to: %s\n", uri_to);
-
-    mal_uri_t *short_uri_to = get_short_uri(uri_to);
-    clog_debug(maltcp_logger, "maltcp_ctx: short_uri_to: %s\n", short_uri_to);
-
-    // Re-send the message to the appropriate endpoint.
-    // Normally the message will be deleted by the appropriate endpoint.
-    // What happens if no endpoint reads this message? It seems that Router socket
-    // discard messages if there are no readers.
-    //zframe_t *identity_frame = zframe_new(short_uri_to, strlen(short_uri_to));
-    zmq_msg_t identity;
-    int rc = zmq_msg_init_data (&identity, short_uri_to, strlen(short_uri_to), NULL, NULL); assert (rc == 0);
-    rc = zmq_msg_send(&identity, self->endpoints_socket, ZMQ_SNDMORE);
-    assert(rc == strlen(short_uri_to));
-    clog_debug(maltcp_logger, "maltcp_ctx: send identity (%d bytes) to endpoint %s\n", rc, short_uri_to);
-
-    size_t msg_size = zmq_msg_size(zmsg);
-    clog_debug(maltcp_logger, "maltcp_ctx: send message (%d frames) to endpoint %s\n", msg_size, short_uri_to);
-
-    // Destroy URI To
-    mal_uri_destroy(&uri_to);
-
-    //int rc = zmsg_send(&zmsg, self->endpoints_socket);
-    rc = zmq_msg_send(zmsg, self->endpoints_socket, ZMQ_DONTWAIT);
-    assert(rc == msg_size);
+    nb += nbread;
   }
 
-  clog_debug(maltcp_logger, "maltcp_ctx: zmsg handled.\n");
+  // First read, get the message size in the header
+  int msg_size = maltcp_decode_body_length(header, nb);
+  clog_debug(maltcp_logger, "maltcp_ctx_socket_receive: should read = %d bytes\n", msg_size);
+
+  // Allocate the message and copy header
+  char* msg = (char*) malloc(msg_size);
+  memcpy(msg, header, FIXED_HEADER_LENGTH);
+
+  // Read the whole message
+  while (nb < msg_size) {
+    int nbread = recv(poller->fd, &msg[nb], msg_size-nb, 0);
+    if (nbread <=0) {
+      clog_error(maltcp_logger, "maltcp_ctx_socket_receive: Error reading message on TCP connection\n");
+      maltcp_ctx_connection_remove_socket(self, poller->fd);
+      zloop_poller_end(loop, poller);
+      close(poller->fd);
+      free(msg);
+      return -1;
+    }
+    nb += nbread;
+  }
+
+  clog_debug(maltcp_logger, "maltcp_ctx_socket_receive: message received, size = %d\n", msg_size);
+
+  // Get URIs from message and register connection if needed
+  mal_uri_t *uri_to;
+  mal_uri_t *uri_from;
+  if (maltcp_decode_uris(self->maltcp_header,
+      self->decoder, msg, msg_size, &uri_to, &uri_from) != 0) {
+    clog_error(maltcp_logger, "maltcp_ctx_socket_receive, could not decode uri_to\n");
+    return -1;
+  }
+  clog_debug(maltcp_logger, "maltcp_ctx_socket_receive: uri_to=%s uri_from=%s\n", uri_to, uri_from);
+
+  // TODO (AF): (uri_to == NULL) or (uri_from == NULL)
+  assert((uri_from != NULL) && (uri_to != NULL));
+
+  if ((uri_from != NULL) && (strncmp(uri_from, MALTCP_URI, sizeof MALTCP_URI -1) == 0)) {
+    // The complete URI is registered in the message header, use it.
+    int len = strlen(uri_from);
+    char *ptr = strchr(uri_from +sizeof MALTCP_URI, '/');
+    if (ptr != NULL)
+      len = ptr-uri_from;
+    char uri[len+1];
+    strncpy(uri, uri_from, len);
+    uri[len] = '\0';
+    clog_debug(maltcp_logger, "maltcp_ctx_socket_receive: register#1 %s\n", uri);
+    // Register the connection if needed
+    maltcp_ctx_connection_register_incoming(self, poller->fd, uri);
+  } else {
+    clog_debug(maltcp_logger, "maltcp_ctx_socket_receive: register#2 %s\n", peer_uri);
+    // Register the connection if needed
+    maltcp_ctx_connection_register_incoming(self, poller->fd, peer_uri);
+  }
+
+  // Forward the message to the appropriate endpoint.
+
+  // Note: Normally the message will be deleted by the appropriate endpoint.
+  // What happens if no endpoint reads this message? It seems that Router socket
+  // discard messages if there are no readers.
+
+  // TODO (AF): Replace by get_service_from_uri
+  mal_uri_t *short_uri_to = get_short_uri(uri_to);
+  int rc = zmq_send(self->endpoints_socket, short_uri_to, strlen(short_uri_to), ZMQ_SNDMORE);
+  assert(rc == strlen(short_uri_to));
+  clog_debug(maltcp_logger, "maltcp_ctx_socket_receive: send identity (%d bytes) to endpoint %s\n", rc, short_uri_to);
+
+  // Send the peer URI
+  rc = zmq_send(self->endpoints_socket, peer_uri, strlen(peer_uri), ZMQ_SNDMORE);
+  assert(rc == strlen(peer_uri));
+  clog_debug(maltcp_logger, "maltcp_ctx_socket_receive: send peer URI (%d bytes) to endpoint %s\n", rc, peer_uri);
+
+  // Send the message
+  clog_debug(maltcp_logger, "maltcp_ctx_socket_receive: send message (%d bytes) to endpoint %s\n", msg_size, short_uri_to);
+  rc = zmq_send(self->endpoints_socket, msg, msg_size, ZMQ_DONTWAIT);
+  assert(rc == msg_size);
+
+  clog_debug(maltcp_logger, "maltcp_ctx: message handled.\n");
+
+  // Destroy URIs: Be careful, short_uri_to is simply a pointer in uri_to.
+  mal_uri_destroy(&uri_to);
+  mal_uri_destroy(&uri_from);
+
+  return 0;
+}
+
+int maltcp_ctx_server_socket_create(int port, int backlog) {
+  clog_debug(maltcp_logger, "maltcp_ctx: creates TCP server socket.\n");
+
+  int listen_socket = socket(AF_INET, SOCK_STREAM, 0);
+  if (listen_socket == -1) {
+    clog_error(maltcp_logger, "Failed to create listen socket: %s", strerror(errno));
+    return -1;
+  }
+  //  setsockopt(listen_socket, SOL_SOCKET, SO_REUSEADDR | SO_REUSEPORT, &one, sizeof(one));
+  //  setsockopt(listen_socket, SOL_SOCKET, SO_REUSEADDR, &one, sizeof(one));
+
+  struct sockaddr_in server_addr;
+  bzero((char *) &server_addr, sizeof(server_addr));
+  server_addr.sin_family = AF_INET;
+  server_addr.sin_addr.s_addr = INADDR_ANY;
+  server_addr.sin_port = htons(port);
+
+  if (bind(listen_socket, (struct sockaddr *) &server_addr, sizeof(server_addr)) == -1) {
+    clog_error(maltcp_logger, "Failed to bind server to port\n");
+    return -1;
+  }
+
+  if (listen(listen_socket, backlog) == -1) {
+    clog_error(maltcp_logger, "Failed to listen: %s", strerror(errno));
+    return -1;
+  }
+
+  clog_debug(maltcp_logger, "maltcp_ctx: TCP server socket created.\n");
+
+  return listen_socket;
+}
+
+// This function is called when an incoming connection is detected on the
+// listening socket. It accepts the connection and registers the appropriate
+// poller to receive message.
+int maltcp_ctx_socket_accept(zloop_t *zloop, zmq_pollitem_t *poller, void *arg) {
+  maltcp_ctx_t *self = (maltcp_ctx_t *) arg;
+
+  clog_debug(maltcp_logger, "maltcp_ctx: TCP server socket accept.\n");
+  if (self->mal_socket == -1) {
+    // The context is closed, return
+    clog_debug(maltcp_logger, "maltcp_ctx_socket_accept: socket (%d) closed\n", poller->fd);
+    return -1;
+  }
+
+  // Accept incoming connection and register it.
+  struct sockaddr src_addr;
+  int new_socket = -1;
+  socklen_t len = sizeof(struct sockaddr_in);
+
+  // Note: May be we could use poller->fd to replace self->mal_socket
+  if ((new_socket = accept(self->mal_socket, &src_addr, &len)) == -1) {
+    clog_error(maltcp_logger, "Failed to accept: %s\n", strerror(errno));
+    return -1;
+  }
+
+  if (clog_is_loggable(maltcp_logger, CLOG_DEBUG_LEVEL)) {
+    // Needed only for debug.
+    char src_ipstr[INET6_ADDRSTRLEN];
+    int src_port;
+
+    if (src_addr.sa_family == AF_INET) {
+      struct sockaddr_in *s = (struct sockaddr_in *)&src_addr;
+      src_port = ntohs(s->sin_port);
+      inet_ntop(AF_INET, &s->sin_addr, src_ipstr, sizeof src_ipstr);
+    } else { // AF_INET6
+      struct sockaddr_in6 *s = (struct sockaddr_in6 *)&src_addr;
+      src_port = ntohs(s->sin6_port);
+      inet_ntop(AF_INET6, &s->sin6_addr, src_ipstr, sizeof src_ipstr);
+    }
+    clog_debug(maltcp_logger, "maltcp_ctx_socket_accept: Source URI: %s://%s:%d\n", MALTCP_PROTOCOL, src_ipstr, src_port);
+  }
+
+  zmq_pollitem_t poller2 = { NULL, new_socket, ZMQ_POLLIN };
+  int rc = zloop_poller(zloop, &poller2, maltcp_ctx_socket_receive, self);
+  assert(rc == 0);
+
+  // Note: do not register the connection since the uri is not yet precisely known.
+
+  clog_debug(maltcp_logger, "maltcp_ctx: TCP connection established.\n");
+
   return 0;
 }
 
 //  --------------------------------------------------------------------------
 //  Provide the Binding functions
 
+int zloop_timer_handle(zloop_t *loop, int timer_id, void *arg) {
+  return 0;
+}
+
 maltcp_ctx_t *maltcp_ctx_new(mal_ctx_t *mal_ctx,
-    maltcp_mapping_uri_t *mapping_uri,
     char *hostname, char *port,
     maltcp_header_t *maltcp_header,
     bool verbose) {
@@ -446,7 +489,6 @@ maltcp_ctx_t *maltcp_ctx_new(mal_ctx_t *mal_ctx,
     return NULL;
 
   self->mal_ctx = mal_ctx;
-  self->mapping_uri = mapping_uri;
   self->hostname = hostname;
   self->port = port;
   self->maltcp_header = maltcp_header;
@@ -454,41 +496,23 @@ maltcp_ctx_t *maltcp_ctx_new(mal_ctx_t *mal_ctx,
   self->encoder = malbinary_encoder_new(false);
   self->decoder = malbinary_decoder_new(false);
 
-  int mal_uri_len = strlen(hostname) + strlen(port) + 10;
-  mal_uri_t mal_uri[mal_uri_len + 1];
-  mal_uri[0] = '\0';
-  strcat(mal_uri, "maltcp://");
-  strcat(mal_uri, hostname);
-  strcat(mal_uri, ":");
-  strcat(mal_uri, port);
-
-  if (verbose)
+  if (verbose) {
+    mal_uri_t mal_uri[strlen(hostname) + strlen(port) + 10 + 1];
+    sprintf((char*) mal_uri, "%s://%s:%s", MALTCP_PROTOCOL, hostname, port);
     clog_debug(maltcp_logger, "maltcp_ctx_new: mal_uri=: %s\n", mal_uri);
+  }
 
   zctx_t *zmq_ctx = zctx_new();
   self->zmq_ctx = zmq_ctx;
 
-  // PTP : bind socket
-  void *mal_socket = zsocket_new(zmq_ctx, ZMQ_STREAM);
-  self->mal_socket = mal_socket;
-  mal_uri_t *ptp_uri = get_ptp_uri(self, mal_uri);
-  zsocket_bind(self->mal_socket, ptp_uri);
-  if (verbose)
-    clog_debug(maltcp_logger, "maltcp_ctx: ptp listening to: %s\n", ptp_uri);
+  self->cnx_table = zhash_new();
 
-  /*
-   * //PUBSUB TODO: remove
-  // PS : connect socket
-  void *pub = zsocket_new(zmq_ctx, ZMQ_SUB);
-  assert (pub);
-  self->mal_pubsub_socket = pub;
-  mal_uri_t *ps_uri = get_ps_uri(self, mal_uri);
-  int rc = zsocket_connect(self->mal_pubsub_socket, ps_uri);
-  assert(rc == 0);
+  // Creates the TCP listening socket
+  int listen = maltcp_ctx_server_socket_create(atoi(port), BACKLOG);
+  assert(listen >= 0);
+  self->mal_socket = listen;
   if (verbose)
-    clog_debug(maltcp_logger, "maltcp_ctx: pubsub connect to: %s\n", ps_uri);
-  zsocket_set_subscribe(self->mal_pubsub_socket, SUB_NAME);
- */
+    clog_debug(maltcp_logger, "maltcp_ctx: ptp listening to: %s\n", port);
 
   //inproc
   void *endpoints_socket = zsocket_new(zmq_ctx, ZMQ_ROUTER);
@@ -496,22 +520,17 @@ maltcp_ctx_t *maltcp_ctx_new(mal_ctx_t *mal_ctx,
   zsocket_bind(endpoints_socket, ZLOOP_ENDPOINTS_SOCKET_URI);
 
   zloop_t *zloop = zloop_new();
+  // TODO (AF): It seems that adding poller from outside of handler is not correctly
+  // supported by ZMQ. We should provide an inproc socket allowing to add the needed
+  // poller. However it seems that a timer regularly awaking the zloop corrects this
+  // issue.
+  zloop_timer (zloop, 100, 0, zloop_timer_handle, self);
+//  zloop_set_verbose(zloop, true);
   self->zloop = zloop;
 
-  // The poll item is a 0MQ socket, not a fd
-  // therefore, 0 is passed as a second parameter for the fd value.
-  // zmq_pollitem_t is a libzmq structure (not a czmq) that is
-  // not kept by the poller. It is only used as a set of parameters.
-  zmq_pollitem_t poller = { self->mal_socket, 0, ZMQ_POLLIN };
-  int rc = zloop_poller(zloop, &poller, maltcp_ctx_mal_standard_socket_handle, self);
+  zmq_pollitem_t poller = { NULL, listen, ZMQ_POLLIN };
+  int rc = zloop_poller(zloop, &poller, maltcp_ctx_socket_accept, self);
   assert(rc == 0);
-
-  /*
-   * //PUBSUB TODO: remove
-  poller.socket = self->mal_pubsub_socket;
-  rc = zloop_poller(zloop, &poller, maltcp_ctx_mal_pubsub_socket_handle, self);
-  assert(rc == 0);
-  */
 
   mal_ctx_set_binding(
       mal_ctx, self,
@@ -519,7 +538,7 @@ maltcp_ctx_t *maltcp_ctx_new(mal_ctx_t *mal_ctx,
       maltcp_ctx_create_endpoint, maltcp_ctx_destroy_endpoint,
       maltcp_ctx_create_poller, maltcp_ctx_destroy_poller,
       maltcp_ctx_poller_add_endpoint, maltcp_ctx_poller_del_endpoint,
-      maltcp_ctx_send_message, maltcp_ctx_recv_message,
+      maltcp_ctx_send_message, maltcp_ctx_recv_message, maltcp_ctx_endpoint_init_operation,
       maltcp_ctx_poller_wait,
       maltcp_ctx_destroy_message,
       maltcp_ctx_start,
@@ -535,78 +554,213 @@ int maltcp_ctx_start(void *self) {
 }
 
 int maltcp_ctx_stop(void *self) {
-  clog_debug(maltcp_logger, "maltcp_ctx: stop...\n");
-  zloop_destroy(&((maltcp_ctx_t *)self)->zloop);
+  maltcp_ctx_t *mal_ctx = (maltcp_ctx_t *) self;
+
+  clog_debug(maltcp_logger, "maltcp_ctx_stop..\n");
+  // Note: this method is not symmetric with maltcp_ctx_start, may be we have to
+  // create and bind the socket in maltcp_ctx_start rather than in maltcp_ctx_new.
+  int socket = mal_ctx->mal_socket;
+  mal_ctx->mal_socket = -1;
+  close(socket);
+  // TODO(AF): zmq_close versus zsocket_destroy
+  zsocket_destroy(((maltcp_ctx_t *)self)->zmq_ctx, ((maltcp_ctx_t *)self)->endpoints_socket);
+  //  zmq_close(mal_ctx->endpoints_socket);
+
+  // Free all structures in hash-table, close socket and destroy mutex.
+  if (mal_ctx->cnx_table) {
+    maltcp_ctx_connection_t *cnx_ptr =  (maltcp_ctx_connection_t*) zhash_first(mal_ctx->cnx_table);
+    while (cnx_ptr) {
+      // Close registered TCP connections
+      clog_debug(maltcp_logger, "maltcp_ctx_destroy: close socket.\n");
+      close(cnx_ptr->socket);
+      pthread_mutex_destroy(&cnx_ptr->lock);
+      // destroy all registered sockets
+      cnx_ptr = (maltcp_ctx_connection_t*) zhash_next(mal_ctx->cnx_table);
+    }
+  }
+
+  // TODO (AF): Close all pollers?
+  clog_debug(maltcp_logger, "maltcp_ctx_stop: stopped.\n");
   return 0;
 }
 
 int maltcp_ctx_destroy(void **self_p) {
+  clog_debug(maltcp_logger, "maltcp_ctx_destroy..\n");
   if (*self_p) {
     maltcp_ctx_t *self = (maltcp_ctx_t *) *self_p;
     free(self->maltcp_header);
+    // Free all structures in hash-table, close socket and destroy mutex.
+    if (self->cnx_table)
+      zhash_destroy(&self->cnx_table);
+    zloop_destroy(&self->zloop);
+    zctx_destroy(&self->zmq_ctx);
+
     free(self);
     *self_p = NULL;
   }
   return 0;
 }
 
+// Returns a newly allocated string containing the base URI of the full URI specified
+// in parameter: "maltcp://ipaddress:port/service" -> "maltcp://ipaddress:port"
+char *get_base_uri(char *full_uri) {
+  int len = strlen(full_uri);
+  char *ptr = strchr(full_uri +sizeof MALTCP_URI, '/');
+  if (ptr != NULL)
+    len = ptr-full_uri;
+  char *base_uri = (char*) malloc(len+1);
+  strncpy(base_uri, full_uri, len);
+  base_uri[len] = '\0';
+
+  return base_uri;
+}
+
+// Returns a pointer to the substring that specify the requested service in the URI
+// specified in parameter: "maltcp://ipaddress:port/service" -> "service"
+char *get_service_from_uri(char *full_uri) {
+  if (strncmp(MALTCP_URI, full_uri, sizeof MALTCP_URI -1) == 0) {
+    char *ptr = strchr(full_uri +sizeof MALTCP_URI, '/');
+    return ptr+1;
+  } else {
+    return full_uri;
+  }
+}
+
+// Returns a newly allocated string containing the IP address from the URI specified
+// in parameter: "maltcp://ipaddress:port/service" -> "ipaddress"
+char *get_host_from_uri(char *uri) {
+  char* ptr1 = strchr(uri +sizeof MALTCP_URI -1, ':');
+  if (ptr1 == NULL)
+    return NULL;
+
+  size_t len = (size_t) (ptr1 - uri -sizeof MALTCP_URI +1);
+  clog_debug(maltcp_logger, "get_host_from_uri: %s %d\n", ptr1, len);
+  char* host = (char*) malloc(len +1);
+  strncpy(host, uri +sizeof MALTCP_URI -1, len);
+  host[len] = '\0';
+
+  return host;
+}
+
+// Returns the port number from the URI specified in parameter:
+// "maltcp://ipaddress:port/service" -> port
+int get_port_from_uri(char *uri) {
+  char port[10];
+  char* ptr1 = strchr(uri +sizeof MALTCP_URI -1, ':');
+  if (ptr1 == NULL)
+    return -1;
+  char* ptr2 = strchr(ptr1+1, '/');
+  if (ptr2 == NULL)
+    ptr2 = ptr1 + strlen(ptr1);
+
+  size_t len = (size_t) (ptr2 - ptr1 -1);
+  strncpy(port, ptr1+1, len);
+  port[len] = '\0';
+
+  return atoi(port);
+}
+
+int maltcp_ctx_socket_send(maltcp_ctx_connection_t *cnx, malbinary_cursor_t *cursor) {
+  // Lock TCP connection.
+  pthread_mutex_lock(&cnx->lock);
+  clog_debug(maltcp_logger, "maltcp_ctx_socket_send: send TCP message, size=%d\n", malbinary_cursor_get_length(cursor));
+  int rc = send(cnx->socket, cursor->body_ptr, malbinary_cursor_get_length(cursor), 0);
+  if (rc < 0)
+    clog_error(maltcp_logger, "maltcp_ctx_socket_send: error sending message.\n");
+  else
+    clog_debug(maltcp_logger, "maltcp_ctx_socket_send: message sent.\n");
+  // Unock TCP connection.
+  pthread_mutex_unlock(&cnx->lock);
+  return rc;
+}
+
+maltcp_ctx_connection_t *maltcp_ctx_socket_connect(maltcp_ctx_t *self, mal_uri_t *socket_uri) {
+  maltcp_ctx_connection_t *cnx_ptr = (maltcp_ctx_connection_t *) zhash_lookup(self->cnx_table, socket_uri);
+
+  if (cnx_ptr == NULL) {
+    clog_debug(maltcp_logger, "maltcp_ctx_socket_connect: open a new PTP socket\n");
+
+    // Create a new connection
+    struct hostent *server;
+    int client_socket = socket(AF_INET, SOCK_STREAM, 0);
+    if (client_socket == -1) {
+      clog_error(maltcp_logger, "maltcp_ctx_socket_connect: failed to create client socket: %s\n", strerror(errno));
+      return NULL;
+    }
+
+    char *ipaddr = get_host_from_uri(socket_uri);
+    clog_debug(maltcp_logger, "maltcp_ctx_socket_connect: %s %d\n", ipaddr, get_port_from_uri(socket_uri));
+    if ((server = gethostbyname(ipaddr)) == NULL) {
+      clog_error(maltcp_logger, "maltcp_ctx_socket_connect: failed to to get address: %s\n", strerror(errno));
+      free(ipaddr);
+      return NULL;
+    }
+    free(ipaddr);
+
+    struct sockaddr_in server_addr;
+    bzero((char *) &server_addr, sizeof(server_addr));
+    server_addr.sin_family = AF_INET;
+    bcopy((char *)server->h_addr, (char *)&server_addr.sin_addr.s_addr, server->h_length);
+    server_addr.sin_port = htons(get_port_from_uri(socket_uri));
+
+    if (connect(client_socket, (struct sockaddr *)&server_addr, sizeof(struct sockaddr)) == -1) {
+      clog_error(maltcp_logger, "maltcp_ctx_socket_connect: failed to connect: %s\n", strerror(errno));
+      return NULL;
+    }
+    clog_debug(maltcp_logger, "maltcp_ctx_socket_connect: connected to %s\n", socket_uri);
+
+    clog_debug(maltcp_logger, "maltcp_ctx_socket_connect: update TCP connections table\n");
+    cnx_ptr = maltcp_ctx_connection_register_outgoing(self, client_socket, socket_uri);
+
+    // TODO (AF): We must register a zloop poller for this connection.
+    zmq_pollitem_t poller = { NULL, client_socket, ZMQ_POLLIN };
+    int rc = zloop_poller(self->zloop, &poller, maltcp_ctx_socket_receive, self);
+    assert(rc == 0);
+    // TODO (AF):
+//    zclock_sleep(1000);
+  } else {
+    clog_debug(maltcp_logger, "maltcp_ctx_socket_connect: use existing connection (%d) for %s\n", cnx_ptr->socket, socket_uri);
+  }
+
+  return cnx_ptr;
+}
+
+void maltcp_ctx_socket_destroy(maltcp_ctx_connection_t *cnx_ptr) {
+  if (close(cnx_ptr->socket) != 0) {
+    clog_error(maltcp_logger, "maltcp_ctx_socket_destroy: Failed to close socket.\n");
+  }
+  if (pthread_mutex_destroy(&cnx_ptr->lock) != 0) {
+    clog_error(maltcp_logger, "maltcp_ctx_socket_destroy: Failed to destroy mutex.\n");
+  }
+}
 // Must be compliant with MAL virtual function: void *self
-int maltcp_ctx_send_message(void *self, mal_endpoint_t *mal_endpoint,
-    mal_message_t *mal_message) {
+int maltcp_ctx_send_message(void *self, mal_endpoint_t *mal_endpoint, mal_message_t *mal_message) {
   maltcp_ctx_t *maltcp_ctx = (maltcp_ctx_t *) self;
 
   if (clog_is_loggable(maltcp_logger, CLOG_INFO_LEVEL)) {
-    clog_info(maltcp_logger, "maltcp_ctx_send_message()\n");
+    clog_info(maltcp_logger, "maltcp_ctx_send_message:\n");
     mal_message_print(mal_message);
     clog_info(maltcp_logger, "\n");
   }
 
   int rc = 0;
 
-  mal_uri_t *socket_uri = get_uri_to(maltcp_ctx, mal_message);
+  mal_uri_t *uri_to = mal_message_get_uri_to(mal_message);
+  clog_debug(maltcp_logger, "maltcp_ctx_send_message: uri_to=%s\n", uri_to);
 
-  clog_debug(maltcp_logger, "maltcp_ctx_send_message: socket_uri=%s\n", socket_uri);
+  char *peer_uri = get_base_uri(uri_to);
+  clog_debug(maltcp_logger, "maltcp_ctx_send_message: peer_uri=%s\n", peer_uri);
 
-  maltcp_endpoint_data_t *endpoint_data =
-      (maltcp_endpoint_data_t *) mal_endpoint_get_endpoint_data(mal_endpoint);
-
-  void *socket = zhash_lookup(endpoint_data->remote_socket_table, socket_uri);
-
-  if (socket == NULL) {
-    // Open a new socket
-
-    if (mal_message_get_interaction_stage(mal_message) != MAL_IP_STAGE_PUBSUB_PUBLISH) {
-      clog_debug(maltcp_logger, "maltcp_ctx: open a new PTP socket\n");
-      socket = zsocket_new(maltcp_ctx->zmq_ctx, ZMQ_STREAM);
-      clog_debug(maltcp_logger, "maltcp_ctx: connect to %s\n", socket_uri);
-      zmq_connect(socket, socket_uri);
-    }
-    /*
-     * //PUBSUB TODO: remove
-    else {
-      clog_debug(maltcp_logger, "maltcp_ctx: open a new PUBSUB socket\n");
-      socket = zsocket_new(maltcp_ctx->zmq_ctx, ZMQ_PUB);
-
-      int val = 0;
-      rc = zmq_setsockopt(socket, ZMQ_LINGER, &val, sizeof(val));
-      assert (rc == 0);
-
-      clog_debug(maltcp_logger, "maltcp_ctx: bind to %s\n", socket_uri);
-
-      rc = zsocket_bind(socket, socket_uri);
-      assert(rc);
-      // Avoid to lost the first message
-      zclock_sleep (500);
-    }
-    */
-
-    clog_debug(maltcp_logger, "maltcp_ctx: update table\n");
-    zhash_update(endpoint_data->remote_socket_table, socket_uri, socket);
+  maltcp_ctx_connection_t *cnx_ptr = maltcp_ctx_socket_connect(maltcp_ctx, peer_uri);
+  if (cnx_ptr == NULL) {
+    clog_error(maltcp_logger, "maltcp_ctx_send_message: cannot create connection for %s.\n", peer_uri);
+    free(peer_uri);
+    return -1;
   }
+  free(peer_uri);
 
-  clog_debug(maltcp_logger, "maltcp_ctx: mal_message_add_encoding_length_malbinary\n");
-
-  // TODO (AF): Use virtual allocation and initialization functions from encoder.
+  // Note: We could use virtual allocation and initialization functions from encoder
+  // rather than malbinary interface.
   malbinary_cursor_t cursor;
   malbinary_cursor_reset(&cursor);
 
@@ -625,75 +779,31 @@ int maltcp_ctx_send_message(void *self, mal_endpoint_t *mal_endpoint,
 
   clog_debug(maltcp_logger, "maltcp_ctx: encoding_length=%d\n", malbinary_cursor_get_length(&cursor));
 
-  // TODO (AF): Replace by a virtual function
+  // Note: We could use virtual allocation and initialization functions from encoder
+  // rather than malbinary interface.
   malbinary_cursor_init(&cursor,
       (char *) malloc(malbinary_cursor_get_length(&cursor)),
       malbinary_cursor_get_length(&cursor),
       0);
-  // TODO (AF): to remove
-//  char *bytes = (char *) malloc(encoding_length);
-//  unsigned int offset = 0;
 
   clog_debug(maltcp_logger, "maltcp_ctx: mal_message_encode_malbinary\n");
 
   // 'maltcp' encoding format of the MAL header
   rc = maltcp_encode_message(maltcp_ctx->maltcp_header, mal_message, maltcp_ctx->encoder, &cursor);
-  assert(cursor.body_length == cursor.body_offset);
   if (rc < 0)
     return rc;
+  assert(cursor.body_length == cursor.body_offset);
 
   clog_debug(maltcp_logger, "maltcp_ctx: message is encoded: %d bytes\n", malbinary_cursor_get_offset(&cursor));
 
-  //zframe_t *frame = zframe_new(bytes, encoding_length);
-  clog_debug(maltcp_logger, "maltcp_ctx: send zmq message\n");
+  // send the message
+  if (maltcp_ctx_socket_send(cnx_ptr, &cursor) < 0)
+    return -1;
 
-  if (mal_message_get_interaction_stage(mal_message) != MAL_IP_STAGE_PUBSUB_PUBLISH) {
-    // send one frame on send stage
-    //rc = zframe_send(&frame, socket, 0);
-
-    unsigned char id [256];
-    size_t id_size = 256;
-    // Must currently resort to the libzmq low-level lib to obtain
-    // raw identity information because CZMQ is returning the binary
-    // identity data as a char* and often there is 0 in the data which
-    // prematurely terminates the char* data.
-    rc = zmq_getsockopt(socket, ZMQ_IDENTITY, id, &id_size);
-    assert (rc == 0);
-
-    /* Sends the ID frame followed by the response */
-    zmq_send (socket, id, id_size, ZMQ_SNDMORE);
-    zmq_send (socket, cursor.body_ptr, malbinary_cursor_get_length(&cursor), 0);
-    clog_debug(maltcp_logger, "maltcp_ctx: zmq message (%d) sended.\n", malbinary_cursor_get_length(&cursor));
-
-    /* TODO: use zmq_msg_* ?
-    zmq_msg_t msg;
-    int rc = zmq_msg_init_data (&msg, (char *) bytes, encoding_length, NULL, NULL); assert (rc == 0);
-    rc = zmq_msg_send(&msg, socket, 0);
-    assert(rc == encoding_length);
-     */
-
-    /* Closes the connection by sending the ID frame followed by a zero response */
-    //zmq_send (socket, id, id_size, ZMQ_SNDMORE);
-    //zmq_send (socket, 0, 0, ZMQ_SNDMORE);
-    /* NOTE: If we don't use ZMQ_SNDMORE, then we won't be able to send more */
-    /* message to any client */
-  }
-  /*
-   * //PUBSUB TODO: remove
-  else {
-    // send two frames on publish stage
-    rc = zstr_sendm(socket, SUB_NAME);
-    clog_debug(maltcp_logger, "maltcp_ctx: send the SUB_NAME, rc = %d\n", rc);
-    rc = zframe_send(&frame, socket, 0);
-    clog_debug(maltcp_logger, "maltcp_ctx: zframe_send the message,  rc = %d\n", rc);
-    assert(rc == 0);
-  }
-  */
-  clog_debug(maltcp_logger, "maltcp_ctx: message sent.\n");
-
-  return rc;
+  return 0;
 }
 
+// This function is used by endpoint to receive message from zloop.
 int maltcp_ctx_recv_message(void *self, mal_endpoint_t *mal_endpoint, mal_message_t **message) {
   maltcp_ctx_t *maltcp_ctx = (maltcp_ctx_t *) self;
   maltcp_endpoint_data_t *endpoint_data = (maltcp_endpoint_data_t *) mal_endpoint_get_endpoint_data(mal_endpoint);
@@ -708,11 +818,21 @@ int maltcp_ctx_recv_message(void *self, mal_endpoint_t *mal_endpoint, mal_messag
 
     clog_debug(maltcp_logger, "maltcp_ctx_recv_message: received zmsg (%d frames)\n", frames_count);
 
-    // The MAL message is in the first frame.
+    // The first frame contains the peer URI.
+    zframe_t *from = zmsg_pop(zmsg);
+    char *peer_uri = NULL;
+    if (from != NULL) {
+      int len = zframe_size(from);
+      peer_uri = (char *) malloc(len +1);
+      strncpy(peer_uri, (char *)zframe_data(from), len);
+      peer_uri[len] = '\0';
+      zframe_destroy(&from);
+    }
+    clog_debug(maltcp_logger, "maltcp_ctx_recv_message: peer_uri = %s\n", peer_uri);
+
+    // The MAL message is in the second frame.
     // Now the frame is owned by us.
     zframe_t *frame = zmsg_pop(zmsg);
-
-    clog_debug(maltcp_logger, "maltcp_ctx_recv_message: frame size = %d\n", zframe_size(frame));
 
     size_t mal_msg_bytes_length = zframe_size(frame);
     clog_debug(maltcp_logger, "maltcp_ctx_recv_message: mal_msg_bytes_length=%d\n", mal_msg_bytes_length);
@@ -722,24 +842,51 @@ int maltcp_ctx_recv_message(void *self, mal_endpoint_t *mal_endpoint, mal_messag
 
     *message = mal_message_new_void();
 
-    // MALTCP always uses the 'malbinary' encoding format for the messages encoding (another format
-    // may be used at the application layer for the message body).
+    // MALTCP always uses the 'malbinary' encoding format for the messages header encoding (another
+    // format may be used at the application layer for the message body).
 
-    // TODO (AF): Use virtual allocation and initialization functions from encoder.
+    // Note: We could use virtual allocation and initialization functions from encoder
+    // rather than malbinary interface.
     malbinary_cursor_t cursor;
     malbinary_cursor_init(&cursor, (char *) mal_msg_bytes, mal_msg_bytes_length, 0);
 
-    mal_uoctet_t encoding_id;
     mal_uinteger_t mal_message_length;
 
     // 'maltcp' encoding format of the MAL header
     if (maltcp_decode_message(maltcp_ctx->maltcp_header, *message,
-        maltcp_ctx->decoder, &cursor, &encoding_id, &mal_message_length) != 0) {
+        maltcp_ctx->decoder, &cursor, &mal_message_length) != 0) {
       clog_error(maltcp_logger, "maltcp_ctx_recv_message, cannot decode message\n");
       return -1;
     }
-    // TODO (AF): Remove mal_message_length
+    // Note: Currently the message length is always equal to the frame size.
     assert(mal_msg_bytes_length == mal_message_length);
+
+    // If the From URI field is not completely filled, we have to complete it with
+    // the information from TCP/IP protocol.
+    mal_uri_t *uri_from = mal_message_get_uri_from(*message);
+    if (uri_from == NULL) {
+      mal_message_set_uri_from(*message, peer_uri);
+      mal_message_set_free_uri_from(*message, (1==1));
+    } else if (strncmp(uri_from, MALTCP_URI, sizeof MALTCP_URI -1) != 0) {
+      if (uri_from[0] == '/')
+        uri_from += 1;
+      mal_uri_t *uri = (mal_uri_t *) malloc(strlen(peer_uri) + strlen(uri_from) +1);
+      strcpy(uri, peer_uri);
+      strcat(uri, uri_from);
+      mal_message_set_uri_from(*message, uri);
+      mal_message_set_free_uri_from(*message, (1==1));
+      free(peer_uri);
+    } else {
+      // The complete URI is registered in the message header, use it.
+      free(peer_uri);
+    }
+
+    // If the To URI field is not completely filled, we have to complete it.
+    mal_uri_t *uri_to = mal_message_get_uri_to(*message);
+    if ((uri_to == NULL) || (strncmp(uri_to, MALTCP_URI, sizeof MALTCP_URI -1) != 0)) {
+      mal_message_set_uri_to(*message, mal_endpoint_get_uri(endpoint_data->mal_endpoint));
+      mal_message_set_free_uri_to(*message, (1!=1));
+    }
 
     // Destroy must free the tcp frame
     mal_message_set_body_owner(*message, frame);
@@ -748,10 +895,6 @@ int maltcp_ctx_recv_message(void *self, mal_endpoint_t *mal_endpoint, mal_messag
     if (clog_is_loggable(maltcp_logger, CLOG_DEBUG_LEVEL))
       mal_message_print(*message);
     clog_debug(maltcp_logger, "\n");
-
-    // Verify that the message is for the current endpoint
-    mal_uri_t *uri_to = mal_message_get_uri_to(*message);
-    clog_debug(maltcp_logger, "maltcp_ctx_recv_message: uri_to=%s\n", uri_to);
 
     // Verify if the message could be delivered and destroy it otherwise.
     if (endpoint_data->mal_endpoint) {
@@ -775,6 +918,19 @@ int maltcp_ctx_recv_message(void *self, mal_endpoint_t *mal_endpoint, mal_messag
   return rc;
 }
 
+int maltcp_ctx_endpoint_init_operation(mal_endpoint_t *mal_endpoint,
+    mal_message_t *message, mal_uri_t *uri_to, bool set_tid) {
+
+  mal_message_set_uri_to(message, uri_to);
+  mal_message_set_uri_from(message,  mal_endpoint_get_uri(mal_endpoint));
+  mal_message_set_free_uri_from(message, false);
+  if (set_tid) {
+    mal_message_set_transaction_id(message, mal_endpoint_get_next_transaction_id_counter(mal_endpoint));
+  }
+
+  return mal_ctx_send_message(mal_endpoint_get_mal_ctx(mal_endpoint), mal_endpoint, message);
+}
+
 // Must be compliant with MAL virtual function.
 int maltcp_ctx_destroy_message(void *self, mal_message_t *mal_message) {
   zframe_t *frame = (zframe_t *) mal_message_get_body_owner(mal_message);
@@ -790,7 +946,7 @@ mal_uri_t *maltcp_ctx_create_uri(void *self, char *id) {
 
   clog_debug(maltcp_logger, "maltcp_ctx_create_uri()\n");
 
-  size_t uri_length = strlen(MALZMQ_PROTOCOL) + 3;
+  size_t uri_length = strlen(MALTCP_PROTOCOL) + 3;
   if (maltcp_ctx->hostname) {
     uri_length += strlen(maltcp_ctx->hostname);
   }
@@ -807,7 +963,7 @@ mal_uri_t *maltcp_ctx_create_uri(void *self, char *id) {
   // Need to set the final '\0' before using strcat
   uri[0] = '\0';
   if (uri) {
-    strcat(uri, MALZMQ_PROTOCOL);
+    strcat(uri, MALTCP_PROTOCOL);
     strcat(uri, "://");
     if (maltcp_ctx->hostname) {
       strcat(uri, maltcp_ctx->hostname);
@@ -840,7 +996,6 @@ void *maltcp_ctx_create_endpoint(void *maltcp_ctx, mal_endpoint_t *mal_endpoint)
     //  Initialize the endpoint ZMQ specific state
     endpoint_data->maltcp_ctx = self;
     endpoint_data->mal_endpoint = mal_endpoint;
-    endpoint_data->remote_socket_table = zhash_new();
 
     mal_endpoint_set_endpoint_data(mal_endpoint, endpoint_data);
 
@@ -874,27 +1029,22 @@ void *maltcp_ctx_create_endpoint(void *maltcp_ctx, mal_endpoint_t *mal_endpoint)
 }
 
 void maltcp_ctx_destroy_endpoint(void *self, void **endpoint_p) {
-  maltcp_endpoint_data_t **self_p = (maltcp_endpoint_data_t **) endpoint_p;
-  assert(self_p);
-  if (*self_p) {
-    maltcp_endpoint_data_t *self = *self_p;
+  assert(endpoint_p);
+  if (*endpoint_p) {
+    maltcp_endpoint_data_t *endpoint = *(maltcp_endpoint_data_t **) endpoint_p;
+
+    // TODO(AF): zmq_close versus zsocket_destroy
+    // NOTE: Closing this socket makes a core dump
+//    zsocket_destroy(endpoint->maltcp_ctx->zmq_ctx, endpoint->socket);
+//    zmq_close(endpoint->socket);
 
     //  ... destroy your own state here
-    if (self->remote_socket_table) {
-      void *socket = zhash_first(self->remote_socket_table);
-      while (socket) {
-        // destroy all registered sockets
-        zsocket_destroy(self->maltcp_ctx->zmq_ctx, socket);
-        socket = zhash_next(self->remote_socket_table);
-      }
-      zhash_destroy(&self->remote_socket_table);
-    }
 
     // mal_ctx and mal_endpoint must not be destroyed here
     // but where they have been created.
 
-    free(self);
-    *self_p = NULL;
+    free(endpoint);
+    *endpoint_p = NULL;
   }
 }
 
@@ -996,7 +1146,7 @@ int maltcp_ctx_poller_wait(
 
   int rc = 0;
 
-  clog_debug(maltcp_logger, "maltcp_ctx_poller_wait()\n");
+  clog_debug(maltcp_logger, "maltcp_ctx_poller_wait(%d)\n", timeout);
 
   zsock_t *which = (zsock_t *) zpoller_wait(poller_data->poller, timeout);
   if (zpoller_terminated(poller_data->poller)) {

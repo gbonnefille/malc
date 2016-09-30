@@ -1,3 +1,27 @@
+/*
+ * The MIT License (MIT)
+ * 
+ * Copyright (c) 2016 CNES
+ * 
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ * 
+ * The above copyright notice and this permission notice shall be included in all
+ * copies or substantial portions of the Software.
+ * 
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
+ */
+
 #include "testarea.h"
 
 
@@ -83,7 +107,7 @@ testarea_testservice_testcomposite_t * testarea_testservice_testcomposite_new(vo
 int testarea_testservice_testcomposite_add_encoding_length_malbinary(testarea_testservice_testcomposite_t * self, mal_encoder_t * encoder, void * cursor)
 {
   int rc = 0;
-  rc = mal_encoder_add_presence_flag_encoding_length(encoder, cursor, (self->stringfield != NULL));
+  rc = mal_encoder_add_presence_flag_encoding_length(encoder, (self->stringfield != NULL), cursor);
   if (rc < 0)
     return rc;
   if ((self->stringfield != NULL))
@@ -92,7 +116,7 @@ int testarea_testservice_testcomposite_add_encoding_length_malbinary(testarea_te
     if (rc < 0)
       return rc;
   }
-  rc = mal_encoder_add_presence_flag_encoding_length(encoder, cursor, self->intfield_is_present);
+  rc = mal_encoder_add_presence_flag_encoding_length(encoder, self->intfield_is_present, cursor);
   if (rc < 0)
     return rc;
   if (self->intfield_is_present)
@@ -101,7 +125,7 @@ int testarea_testservice_testcomposite_add_encoding_length_malbinary(testarea_te
     if (rc < 0)
       return rc;
   }
-  rc = mal_encoder_add_presence_flag_encoding_length(encoder, cursor, self->floatfield_is_present);
+  rc = mal_encoder_add_presence_flag_encoding_length(encoder, self->floatfield_is_present, cursor);
   if (rc < 0)
     return rc;
   if (self->floatfield_is_present)
@@ -110,7 +134,7 @@ int testarea_testservice_testcomposite_add_encoding_length_malbinary(testarea_te
     if (rc < 0)
       return rc;
   }
-  rc = mal_encoder_add_presence_flag_encoding_length(encoder, cursor, self->doublefield_is_present);
+  rc = mal_encoder_add_presence_flag_encoding_length(encoder, self->doublefield_is_present, cursor);
   if (rc < 0)
     return rc;
   if (self->doublefield_is_present)
