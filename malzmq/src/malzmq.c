@@ -32,7 +32,7 @@ void malzmq_set_log_level(int level) {
 }
 
 typedef enum {
-  MAL_SDUTYPE_SEND,
+  MAL_SDUTYPE_SEND=0,
   MAL_SDUTYPE_SUBMIT,
   MAL_SDUTYPE_SUBMIT_ACK,
   MAL_SDUTYPE_REQUEST,
@@ -62,7 +62,7 @@ static int convert_to_sdu_type(mal_interactiontype_t type, mal_uoctet_t stage,
   case MAL_INTERACTIONTYPE_SEND:
     return MAL_SDUTYPE_SEND;
   case MAL_INTERACTIONTYPE_SUBMIT:
-    if (stage == MAL_IP_STAGE_SEND) {
+    if (stage == MAL_IP_STAGE_SUBMIT) {
       return MAL_SDUTYPE_SUBMIT;
     } else {
       return MAL_SDUTYPE_SUBMIT_ACK;
@@ -453,18 +453,25 @@ int malzmq_encode_message(malzmq_header_t *malzmq_header,
   bool domain_flag = malzmq_header_get_domain_flag(malzmq_header);
   bool authentication_id_flag = malzmq_header_get_authentication_id_flag(malzmq_header);
 
-  ((malbinary_cursor_t *) cursor)->body_ptr[((malbinary_cursor_t *) cursor)->body_offset++] = (char) (priority_flag << 5) | (timestamp_flag << 4)
-          | (network_zone_flag << 3) | (session_name_flag << 2) | (domain_flag << 1)
-          | (authentication_id_flag << 0);
+  ((malbinary_cursor_t *) cursor)->body_ptr[((malbinary_cursor_t *) cursor)->body_offset++] =
+      (char) (priority_flag << 5) |
+             (timestamp_flag << 4) |
+             (network_zone_flag << 3) |
+             (session_name_flag << 2) |
+             (domain_flag << 1) |
+             (authentication_id_flag << 0);
+
+  // TODO (AF): Use Varint!
+//   ((mal_encoder_t *) encoder)->varint_supported = true;
 
   // always encode 'URI From' and 'URI To'
-  // this ordering is not consistent with the blue book proposal,
-  // but closer with the TCP/IP blue book proposal.
   malzmq_encode_uri(mal_message_get_uri_from(message),
       malzmq_header_get_mapping_directory(malzmq_header), encoder, cursor);
   malzmq_encode_uri(mal_message_get_uri_to(message),
       malzmq_header_get_mapping_directory(malzmq_header), encoder, cursor);
 
+  // TODO (AF): this ordering is not consistent with the blue book proposal,
+  // but closer with the TCP/IP blue book proposal.
   if (priority_flag > 0) {
     malbinary_encoder_encode_uinteger(encoder, cursor, mal_message_get_priority(message));
   }
@@ -492,17 +499,21 @@ int malzmq_encode_message(malzmq_header_t *malzmq_header,
     malbinary_encoder_encode_blob(encoder, cursor, mal_message_get_authentication_id(message));
   }
 
+  // TODO (AF): Stops using Varint
+//  ((mal_encoder_t *) encoder)->varint_supported = false;
+
   // Copy the body in the frame.
-
-  char *body = mal_message_get_body(message);
-  unsigned int body_offset = mal_message_get_body_offset(message);
   unsigned int body_length = mal_message_get_body_length(message);
+  if (body_length > 0) {
+    char *body = mal_message_get_body(message);
+    unsigned int body_offset = mal_message_get_body_offset(message);
 
-  char *bytes = ((malbinary_cursor_t *) cursor)->body_ptr;
-  unsigned int index = ((malbinary_cursor_t *) cursor)->body_offset;
+    char *bytes = ((malbinary_cursor_t *) cursor)->body_ptr;
+    unsigned int index = ((malbinary_cursor_t *) cursor)->body_offset;
 
-  memcpy(bytes + index, body + body_offset, body_length);
-  ((malbinary_cursor_t *) cursor)->body_offset += body_length;
+    memcpy(bytes + index, body + body_offset, body_length);
+    ((malbinary_cursor_t *) cursor)->body_offset += body_length;
+  }
 
   return 0;
 }
@@ -645,10 +656,10 @@ int malzmq_decode_message(malzmq_header_t *malzmq_header,
   bool is_error_message = (b >> 7) & 0x01;
   mal_message_set_is_error_message(message, is_error_message);
 
-  int qoslevel = (b >> 5) & 0x03;
+  int qoslevel = (b >> 4) & 0x07;
   mal_message_set_qoslevel(message, (mal_qoslevel_t) qoslevel);
 
-  int session = (b >> 3) & 0x03;
+  int session = (b >> 0) & 0x0F;
   mal_message_set_session(message, (mal_sessiontype_t) session);
 
   long transaction_id = malbinary_read64(cursor);
@@ -662,7 +673,9 @@ int malzmq_decode_message(malzmq_header_t *malzmq_header,
   bool domain_flag = (b >> 1) & 0x01;
   bool authentication_id_flag = b & 0x01;
 
-  // this ordering is not consistent with the blue book proposal
+  // TODO (AF): Use Varint!
+//  ((mal_decoder_t *) decoder)->varint_supported = true;
+
   mal_uri_t *uri_from;
   malzmq_decode_uri(malzmq_header_get_mapping_directory(malzmq_header),
       decoder, cursor, &uri_from);
@@ -675,6 +688,8 @@ int malzmq_decode_message(malzmq_header_t *malzmq_header,
   mal_message_set_free_uri_to(message, true);
   mal_message_set_uri_to(message, uri_to);
 
+  // TODO (AF): this ordering is not consistent with the blue book proposal,
+  // but closer with the TCP/IP blue book proposal.
   mal_uinteger_t priority;
   if (priority_flag) {
     malbinary_decoder_decode_uinteger(decoder, cursor, &priority);
@@ -732,20 +747,80 @@ int malzmq_decode_message(malzmq_header_t *malzmq_header,
   }
   mal_message_set_authentication_id(message, authentication_id);
 
+  // TODO (AF): Stops using Varint
+//  ((mal_decoder_t *) decoder)->varint_supported = false;
+
   unsigned int body_offset = ((malbinary_cursor_t *) cursor)->body_offset;
   unsigned int body_length = ((malbinary_cursor_t *) cursor)->body_length - body_offset;
 
   char *bytes = ((malbinary_cursor_t *) cursor)->body_ptr;
-  char *body = (char *) malloc(sizeof(char) * body_length);
+  char *body = NULL;
+  if (body_length > 0) {
+    // Copy the message in a newly allocated memory array.
+    body = (char *) malloc(sizeof(char) * body_length);
+    memcpy(body, bytes + body_offset, body_length);
+  }
 
-  memcpy(body, bytes + body_offset, body_length);
-
+  // TODO (AF): Normally we should keep the body in the frame!!
   mal_message_set_body(message, body);
   mal_message_set_body_offset(message, 0);
   mal_message_set_body_length(message, body_length);
 
   return 0;
 }
+
+// BEGIN -- URI manipulation functions:
+// - malzmtp://192.168.0.1:2534/Service
+// - malzmtp://[2001:0db8:85a3:0000:0000:8a2e:0370:7334]:972/Service
+
+// Returns a newly allocated string containing the IP address from the URI specified
+// in parameter: "maltcp://ipaddress:port/service" -> "ipaddress"
+char *malzmq_get_host_from_uri(char *uri) {
+  // TODO (AF): IPv6
+  char* ptr1 = strchr(uri +sizeof MALZMTP_URI -1, ':');
+  if (ptr1 == NULL)
+    return NULL;
+
+  size_t len = (size_t) (ptr1 - uri -sizeof MALZMTP_URI +1);
+  char* host = (char*) malloc(len +1);
+  strncpy(host, uri +sizeof MALZMTP_URI -1, len);
+  host[len] = '\0';
+  clog_debug(malzmq_logger, "get_host_from_uri(%s) /%d -> %s\n", uri, len, host);
+
+  return host;
+}
+
+// Returns the port number from the URI specified in parameter:
+// "maltcp://ipaddress:port/service" -> port
+int malzmq_get_port_from_uri(char *uri) {
+  // TODO (AF): IPv6
+  char port[10];
+  char* ptr1 = strchr(uri +sizeof MALZMTP_URI -1, ':');
+  if (ptr1 == NULL)
+    return -1;
+  char* ptr2 = strchr(ptr1+1, '/');
+  if (ptr2 == NULL)
+    ptr2 = ptr1 + strlen(ptr1);
+
+  size_t len = (size_t) (ptr2 - ptr1 -1);
+  strncpy(port, ptr1+1, len);
+  port[len] = '\0';
+
+  return atoi(port);
+}
+
+// Returns a pointer to the substring that specify the requested service in the URI
+// specified in parameter: "maltcp://ipaddress:port/service" -> "service"
+char *malzmq_get_service_from_uri(char *full_uri) {
+  if (strncmp(MALZMTP_URI, full_uri, sizeof MALZMTP_URI -1) == 0) {
+    char *ptr = strchr(full_uri +sizeof MALZMTP_URI, '/');
+    return ptr+1;
+  } else {
+    return full_uri;
+  }
+}
+
+// END -- URI manipulation functions
 
 //  --------------------------------------------------------------------------
 //  Selftest

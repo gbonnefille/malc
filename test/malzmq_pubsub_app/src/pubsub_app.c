@@ -23,10 +23,10 @@
  */
 
 /* */
-#include "pubsub_app.h"
+#include "../include/pubsub_app.h"
 
-mal_actor_t *publisher_actor = NULL;
-mal_actor_t *subscriber_actor = NULL;
+mal_actor_t *consumer_actor = NULL;
+mal_actor_t *provider_actor = NULL;
 mal_actor_t *broker_actor = NULL;
 
 //  --------------------------------------------------------------------------
@@ -34,13 +34,13 @@ mal_actor_t *broker_actor = NULL;
 int pubsub_app_create_publisher(
     bool verbose,
     mal_ctx_t *mal_ctx,
-    mal_uri_t *publisher_uri,
+    mal_uri_t *provider_uri,
     mal_uri_t *broker_uri,
     mal_encoder_t *encoder,
     mal_decoder_t *decoder) {
   int rc = 0;
 
-  printf(" * pubsub_app_create_publisher: \n");
+  printf(" * pubsub_app_create_provider: \n");
 
   mal_blob_t *authentication_id = mal_blob_new(0);
   mal_qoslevel_t qoslevel = MAL_QOSLEVEL_ASSURED;
@@ -50,16 +50,16 @@ int pubsub_app_create_publisher(
   mal_sessiontype_t session = MAL_SESSIONTYPE_LIVE;
   mal_identifier_t *session_name = mal_identifier_new("LIVE");
 
-  pubsub_app_mypublisher_t *publisher = pubsub_app_mypublisher_new(broker_uri,
+  pubsub_app_mypublisher_t *provider = pubsub_app_mypublisher_new(broker_uri,
       authentication_id, qoslevel, priority, domain, network_zone, session,
       session_name, encoder, decoder);
 
-  publisher_actor = mal_actor_new(
+  provider_actor = mal_actor_new(
       mal_ctx,
-      publisher_uri, publisher,
+      provider_uri, provider,
       pubsub_app_mypublisher_initialize, pubsub_app_mypublisher_finalize);
 
-  printf(" * pubsub_app create publisher actor: %s\n", mal_actor_get_uri(publisher_actor));
+  printf(" * pubsub_app create provider actor: %s\n", mal_actor_get_uri(provider_actor));
 
   return rc;
 }
@@ -67,13 +67,13 @@ int pubsub_app_create_publisher(
 int pubsub_app_create_subscriber(
     bool verbose,
     mal_ctx_t *mal_ctx,
-    mal_uri_t *subscriber_uri,
+    mal_uri_t *consumer_uri,
     mal_uri_t *broker_uri,
     mal_encoder_t *encoder,
     mal_decoder_t *decoder) {
   int rc = 0;
 
-  printf(" * pubsub_app_create_subscriber: \n");
+  printf(" * pubsub_app_create_consumer: \n");
 
   mal_blob_t *authentication_id = mal_blob_new(0);
   mal_qoslevel_t qoslevel = MAL_QOSLEVEL_ASSURED;
@@ -83,16 +83,16 @@ int pubsub_app_create_subscriber(
   mal_sessiontype_t session = MAL_SESSIONTYPE_LIVE;
   mal_identifier_t *session_name = mal_identifier_new("LIVE");
 
-  pubsub_app_mysubscriber_t *subscriber = pubsub_app_mysubscriber_new(broker_uri,
+  pubsub_app_mysubscriber_t *consumer = pubsub_app_mysubscriber_new(broker_uri,
       authentication_id, qoslevel, priority, domain, network_zone, session,
       session_name, encoder, decoder);
 
-  subscriber_actor = mal_actor_new(
+  consumer_actor = mal_actor_new(
       mal_ctx,
-      subscriber_uri, subscriber,
+      consumer_uri, consumer,
       pubsub_app_mysubscriber_initialize, pubsub_app_mysubscriber_finalize);
 
-  printf(" * pubsub_app create subscriber actor: %s\n", mal_actor_get_uri(subscriber_actor));
+  printf(" * pubsub_app create consumer actor: %s\n", mal_actor_get_uri(consumer_actor));
 
   return rc;
 }
@@ -142,17 +142,21 @@ void pubsub_app_test(bool verbose) {
   mal_decoder_t *decoder = malbinary_decoder_new(false);
 
   // All the MAL header fields are passed
-  maltcp_header_t *maltcp_header = maltcp_header_new(true, 0, true, NULL, NULL, NULL, NULL);
+  malzmq_header_t *malzmq_header = malzmq_header_new(NULL, true, 0, true, NULL, NULL, NULL, NULL);
+  // Enables the internal broker mechanism
+  malzmq_header_enable_internal_broker(malzmq_header, false);
 
-  // This test uses the same encoding configuration at the MAL/ZMQ transport
-  // level (MAL header encoding) and at the application
-  // level (MAL message body encoding)
-  maltcp_ctx_new(
+  // Change the logging level of malzmq transport
+  malzmq_set_log_level(CLOG_DEBUG_LEVEL);
+
+  // This test uses the same encoding configuration at the MAL/ZMQ transport level
+  // (MAL header encoding) and at the application level (MAL message body encoding)
+  malzmq_ctx_new(
       mal_ctx,
-      "127.0.0.1", "6666",
-      maltcp_header,
+      NULL,                 // Use default transformation of MAL URI to ZMQ URI
+      "localhost", "6666",
+      malzmq_header,
       true);
-  maltcp_set_log_level(CLOG_DEBUG_LEVEL);
 
   mal_uri_t *provider_uri = mal_ctx_create_uri(mal_ctx, "pubsub_app/myprovider");
   printf("pubsub_app: provider URI: %s\n", provider_uri);
@@ -164,8 +168,8 @@ void pubsub_app_test(bool verbose) {
   printf("pubsub_app: broker URI: %s\n", broker_uri);
 
   pubsub_app_create_broker(verbose, mal_ctx, consumer_uri, provider_uri, broker_uri, encoder, decoder);
-  pubsub_app_create_publisher(verbose, mal_ctx, provider_uri, broker_uri, encoder, decoder);
   pubsub_app_create_subscriber(verbose, mal_ctx, consumer_uri, broker_uri, encoder, decoder);
+  pubsub_app_create_publisher(verbose, mal_ctx, provider_uri, broker_uri, encoder, decoder);
 
   //  @end
   printf("OK\n");
@@ -173,7 +177,6 @@ void pubsub_app_test(bool verbose) {
   // Start blocks until interrupted (see zloop).
   mal_ctx_start(mal_ctx);
   printf("Stopped.\n");
-
   mal_ctx_destroy(&mal_ctx);
   printf("destroyed.\n");
 }

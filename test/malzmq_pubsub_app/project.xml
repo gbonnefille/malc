@@ -22,7 +22,7 @@
 -->
 <project
     name = "pubsub_app"
-    description = "Pub/Sub application using MAL C API"
+    description = "MALZMQ Pub/Sub application with internal broker mechanism using MAL C API"
     script = "zproject.gsl"
     email = ""
     >
@@ -47,7 +47,7 @@
     <use project = "malattributes" />
     <use project = "mal" />
     <use project = "malbinary" />
-    <use project = "maltcp" />
+    <use project = "malzmq" />
     <use project = "testarea" />
     <use project = "malactor" />
 

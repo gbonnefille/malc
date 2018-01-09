@@ -32,7 +32,7 @@ extern "C" {
 
 // fields accessors for composite testarea_testservice_testupdate
 mal_string_t * testarea_testservice_testupdate_get_stringfield(testarea_testservice_testupdate_t * self);
-void testarea_testservice_testupdate_set_stringfield(testarea_testservice_testupdate_t * self, mal_string_t * stringfield);
+void testarea_testservice_testupdate_set_stringfield(testarea_testservice_testupdate_t * self, mal_string_t * f_stringfield);
 
 // default constructor
 testarea_testservice_testupdate_t * testarea_testservice_testupdate_new(void);
