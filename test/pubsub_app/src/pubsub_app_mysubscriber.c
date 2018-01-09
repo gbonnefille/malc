@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  * 
- * Copyright (c) 2016 CNES
+ * Copyright (c) 2016 - 2017 CNES
  * 
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -177,6 +177,7 @@ int pubsub_app_mysubscriber_initialize(void *self, mal_actor_t *mal_actor) {
 int pubsub_app_mysubscriber_finalize(void *self, mal_actor_t *mal_actor) {
   int rc = 0;
   // ...
+  printf("subscriber ended\n");
   return rc;
 }
 
@@ -196,9 +197,8 @@ int pubsub_app_mysubscriber_testderegister_ack(void *self, mal_ctx_t *mal_ctx,
   // Wait for actor's completion
   zclock_sleep(1000);
 
-  mal_actor_send_command(publisher_actor, "$TERM");
-  mal_actor_send_command(broker_actor, "$TERM");
-  mal_actor_send_command(subscriber_actor, "$TERM");
+  mal_actor_term(broker_actor);
+  mal_actor_term(subscriber_actor);
 
   // Wait for actor's completion
   zclock_sleep(1000);
@@ -221,12 +221,18 @@ int pubsub_app_mysubscriber_testderegister(void *self) {
   mal_entityrequest_list_t *entities = mal_entityrequest_list_new(0);
   mal_subscription_set_entities(subscription, entities);
 
+  mal_identifier_list_t *subscription_list = mal_identifier_list_new(1);
+  mal_identifier_t **content = mal_identifier_list_get_content(subscription_list);
+  *content = subscriptionid;
+
   void *deregister_cursor = mal_encoder_new_cursor(subscriber->encoder);
 
-    rc = mal_register_add_encoding_length(
-        subscriber->encoder, subscription, deregister_cursor);
-    if (rc < 0)
-      return rc;
+    printf("########### subscription_list = ");
+    mal_identifier_list_print(subscription_list);
+    printf("\n");
+    rc = mal_deregister_add_encoding_length(subscriber->encoder, subscription_list, deregister_cursor);
+      if (rc < 0)
+        return rc;
 
     mal_message_t *deregister_message = mal_message_new(
         subscriber->authentication_id, subscriber->qoslevel, subscriber->priority,
@@ -239,7 +245,7 @@ int pubsub_app_mysubscriber_testderegister(void *self) {
         mal_encoder_cursor_get_length(subscriber->encoder, deregister_cursor),
         mal_message_get_body_offset(deregister_message));
 
-    rc = mal_register_encode(deregister_cursor, subscriber->encoder, subscription);
+    rc = mal_deregister_encode(deregister_cursor, subscriber->encoder, subscription_list);
     assert(rc == 0);
 
     mal_encoder_cursor_destroy(subscriber->encoder, deregister_cursor);

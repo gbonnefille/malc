@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  * 
- * Copyright (c) 2016 CNES
+ * Copyright (c) 2016 - 2017 CNES
  * 
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -152,7 +152,7 @@ int mal_pair_decode_malbinary(mal_pair_t * self, mal_decoder_t * decoder, void *
     rc = mal_decoder_decode_attribute_tag(decoder, cursor, &self->first_attribute_tag);
     if (rc < 0)
       return rc;
-    rc = mal_decoder_decode_attribute(decoder, cursor, self->first_attribute_tag, self->first);
+    rc = mal_decoder_decode_attribute(decoder, cursor, self->first_attribute_tag, &self->first);
     if (rc < 0)
       return rc;
   }
@@ -165,7 +165,7 @@ int mal_pair_decode_malbinary(mal_pair_t * self, mal_decoder_t * decoder, void *
     rc = mal_decoder_decode_attribute_tag(decoder, cursor, &self->second_attribute_tag);
     if (rc < 0)
       return rc;
-    rc = mal_decoder_decode_attribute(decoder, cursor, self->second_attribute_tag, self->second);
+    rc = mal_decoder_decode_attribute(decoder, cursor, self->second_attribute_tag, &self->second);
     if (rc < 0)
       return rc;
   }

@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  * 
- * Copyright (c) 2016 CNES
+ * Copyright (c) 2016 - 2017 CNES
  * 
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -101,7 +101,7 @@ int malbinary_decoder_decode_ulong(mal_decoder_t *self, void *cursor, mal_ulong_
 int malbinary_decoder_decode_finetime(mal_decoder_t *self, void *cursor, mal_finetime_t *result);
 
 int malbinary_decoder_decode_attribute(mal_decoder_t *decoder, void *cursor,
-    unsigned char attribute_tag, union mal_attribute_t self);
+    unsigned char attribute_tag, union mal_attribute_t *self);
 
 int malbinary_decoder_decode_attribute_tag(mal_decoder_t *self, void *cursor, unsigned char *result);
 

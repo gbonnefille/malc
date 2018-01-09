@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  * 
- * Copyright (c) 2016 CNES
+ * Copyright (c) 2016 - 2017 CNES
  * 
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -112,7 +112,7 @@ int malsplitbinary_decoder_decode_finetime(mal_decoder_t *self,
     void *cursor, mal_finetime_t *result);
 
 int malsplitbinary_decoder_decode_attribute(mal_decoder_t *malsplitbinary_decoder,
-    void *cursor, unsigned char attribute_tag, union mal_attribute_t self);
+    void *cursor, unsigned char attribute_tag, union mal_attribute_t *self);
 
 int malsplitbinary_decoder_decode_attribute_tag(mal_decoder_t *self,
     void *cursor, unsigned char *result);

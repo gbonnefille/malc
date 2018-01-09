@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  * 
- * Copyright (c) 2016 CNES
+ * Copyright (c) 2016 - 2017 CNES
  * 
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -185,7 +185,7 @@ int mal_decoder_decode_finetime(mal_decoder_t *self, void *cursor, mal_finetime_
 }
 
 int mal_decoder_decode_attribute(mal_decoder_t *decoder, void *cursor,
-    unsigned char attribute_tag, union mal_attribute_t self) {
+    unsigned char attribute_tag, union mal_attribute_t *self) {
   return decoder->mal_decoder_decode_attribute(decoder, cursor, attribute_tag, self);
 }
 
