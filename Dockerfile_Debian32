@@ -16,6 +16,6 @@ RUN git clone --depth $GIT_DEPTH https://github.com/imatix/gsl && cd gsl/src && 
 
 RUN git clone --depth $GIT_DEPTH https://github.com/zeromq/zproject.git && cd zproject && ./autogen.sh && ./configure && make && make install
 
-RUN git clone --depth $GIT_DEPTH https://github.com/zeromq/czmq czmq && cd czmq && ./autogen.sh && ./configure --prefix=/usr/local && make && make install
+RUN git clone --depth $GIT_DEPTH --branch v3.0.2 https://github.com/zeromq/czmq czmq && cd czmq && ./autogen.sh && ./configure --prefix=/usr/local && make && make install
 
 RUN ldconfig
