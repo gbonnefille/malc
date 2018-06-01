@@ -32,6 +32,12 @@ extern "C" {
 #define TEST_SPLIT (false)
 #define TEST_TCP (false)
 
+#include "mal.h"
+#include "malbinary.h"
+#include "malsplitbinary.h"
+
+int testarea_malbinary_decode_mal_element(mal_decoder_t * decoder, void * cursor, mal_element_holder_t * element_holder);
+
 // standard area identifiers
 #define TESTAREA_AREA_NUMBER 200
 #define TESTAREA_AREA_VERSION 1
@@ -157,8 +163,6 @@ typedef struct _testarea_testservice_testfinalcompositeb_list_t testarea_testser
 
 // short form for list of composite type TestArea:TestService:TestFinalCompositeB
 #define TESTAREA_TESTSERVICE_TESTFINALCOMPOSITEB_LIST_SHORT_FORM 0xc8000101fffffbL
-
-int testarea_malbinary_decode_mal_element(mal_decoder_t * decoder, void * cursor, mal_element_holder_t * element_holder);
 
 // include required areas definitions
 #include "com.h"
