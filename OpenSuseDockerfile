@@ -13,7 +13,7 @@ ENV GIT_DEPTH=3
 
 RUN git clone --depth $GIT_DEPTH https://github.com/imatix/gsl && cd gsl/src && make && make install
 
-RUN git clone --depth $GIT_DEPTH https://github.com/zeromq/zproject.git && cd zproject && ./autogen.sh && ./configure && make && make install
+RUN git clone https://github.com/zeromq/zproject.git && cd zproject && git checkout d2405f99ea958f062c261f25ec068c78fb1bd697 && ./autogen.sh && ./configure && make && make install
 
 # Installation of last release of ZeroMQ from github
 #RUN git clone --depth $GIT_DEPTH https://github.com/zeromq/libzmq libzmq && cd libzmq && ./autogen.sh && ./configure --prefix=/usr/local && make && make install
