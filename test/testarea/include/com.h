@@ -39,51 +39,101 @@ int com_malbinary_decode_mal_element(mal_decoder_t * decoder, void * cursor, mal
 #define COM_AREA_VERSION 1
 
 // generated code for composite COM:_:ObjectType
+#ifndef COM_OBJECTTYPE_T_DEFINED
+#define COM_OBJECTTYPE_T_DEFINED
+
 typedef struct _com_objecttype_t com_objecttype_t;
+
+#endif // COM_OBJECTTYPE_T_DEFINED
 
 // short form for composite type COM:_:ObjectType
 #define COM_OBJECTTYPE_SHORT_FORM 0x2000001000001L
+#ifndef COM_OBJECTTYPE_LIST_T_DEFINED
+#define COM_OBJECTTYPE_LIST_T_DEFINED
+
 typedef struct _com_objecttype_list_t com_objecttype_list_t;
+
+#endif // COM_OBJECTTYPE_LIST_T_DEFINED
 
 // short form for list of composite type COM:_:ObjectType
 #define COM_OBJECTTYPE_LIST_SHORT_FORM 0x2000001ffffffL
 
 // generated code for composite COM:_:ObjectKey
+#ifndef COM_OBJECTKEY_T_DEFINED
+#define COM_OBJECTKEY_T_DEFINED
+
 typedef struct _com_objectkey_t com_objectkey_t;
+
+#endif // COM_OBJECTKEY_T_DEFINED
 
 // short form for composite type COM:_:ObjectKey
 #define COM_OBJECTKEY_SHORT_FORM 0x2000001000002L
+#ifndef COM_OBJECTKEY_LIST_T_DEFINED
+#define COM_OBJECTKEY_LIST_T_DEFINED
+
 typedef struct _com_objectkey_list_t com_objectkey_list_t;
+
+#endif // COM_OBJECTKEY_LIST_T_DEFINED
 
 // short form for list of composite type COM:_:ObjectKey
 #define COM_OBJECTKEY_LIST_SHORT_FORM 0x2000001fffffeL
 
 // generated code for composite COM:_:ObjectId
+#ifndef COM_OBJECTID_T_DEFINED
+#define COM_OBJECTID_T_DEFINED
+
 typedef struct _com_objectid_t com_objectid_t;
+
+#endif // COM_OBJECTID_T_DEFINED
 
 // short form for composite type COM:_:ObjectId
 #define COM_OBJECTID_SHORT_FORM 0x2000001000003L
+#ifndef COM_OBJECTID_LIST_T_DEFINED
+#define COM_OBJECTID_LIST_T_DEFINED
+
 typedef struct _com_objectid_list_t com_objectid_list_t;
+
+#endif // COM_OBJECTID_LIST_T_DEFINED
 
 // short form for list of composite type COM:_:ObjectId
 #define COM_OBJECTID_LIST_SHORT_FORM 0x2000001fffffdL
 
 // generated code for composite COM:_:ObjectDetails
+#ifndef COM_OBJECTDETAILS_T_DEFINED
+#define COM_OBJECTDETAILS_T_DEFINED
+
 typedef struct _com_objectdetails_t com_objectdetails_t;
+
+#endif // COM_OBJECTDETAILS_T_DEFINED
 
 // short form for composite type COM:_:ObjectDetails
 #define COM_OBJECTDETAILS_SHORT_FORM 0x2000001000004L
+#ifndef COM_OBJECTDETAILS_LIST_T_DEFINED
+#define COM_OBJECTDETAILS_LIST_T_DEFINED
+
 typedef struct _com_objectdetails_list_t com_objectdetails_list_t;
+
+#endif // COM_OBJECTDETAILS_LIST_T_DEFINED
 
 // short form for list of composite type COM:_:ObjectDetails
 #define COM_OBJECTDETAILS_LIST_SHORT_FORM 0x2000001fffffcL
 
 // generated code for composite COM:_:InstanceBooleanPair
+#ifndef COM_INSTANCEBOOLEANPAIR_T_DEFINED
+#define COM_INSTANCEBOOLEANPAIR_T_DEFINED
+
 typedef struct _com_instancebooleanpair_t com_instancebooleanpair_t;
+
+#endif // COM_INSTANCEBOOLEANPAIR_T_DEFINED
 
 // short form for composite type COM:_:InstanceBooleanPair
 #define COM_INSTANCEBOOLEANPAIR_SHORT_FORM 0x2000001000005L
+#ifndef COM_INSTANCEBOOLEANPAIR_LIST_T_DEFINED
+#define COM_INSTANCEBOOLEANPAIR_LIST_T_DEFINED
+
 typedef struct _com_instancebooleanpair_list_t com_instancebooleanpair_list_t;
+
+#endif // COM_INSTANCEBOOLEANPAIR_LIST_T_DEFINED
 
 // short form for list of composite type COM:_:InstanceBooleanPair
 #define COM_INSTANCEBOOLEANPAIR_LIST_SHORT_FORM 0x2000001fffffbL
@@ -108,47 +158,92 @@ typedef enum {
 
 // short form for enumeration type com_archive_expressionoperator
 #define COM_ARCHIVE_EXPRESSIONOPERATOR_SHORT_FORM 0x2000201000005L
+#ifndef COM_ARCHIVE_EXPRESSIONOPERATOR_LIST_T_DEFINED
+#define COM_ARCHIVE_EXPRESSIONOPERATOR_LIST_T_DEFINED
+
 typedef struct _com_archive_expressionoperator_list_t com_archive_expressionoperator_list_t;
+
+#endif // COM_ARCHIVE_EXPRESSIONOPERATOR_LIST_T_DEFINED
 
 // short form for list of enumeration type com_archive_expressionoperator
 #define COM_ARCHIVE_EXPRESSIONOPERATOR_LIST_SHORT_FORM 0x2000201fffffbL
 
 // generated code for composite COM:Archive:ArchiveDetails
+#ifndef COM_ARCHIVE_ARCHIVEDETAILS_T_DEFINED
+#define COM_ARCHIVE_ARCHIVEDETAILS_T_DEFINED
+
 typedef struct _com_archive_archivedetails_t com_archive_archivedetails_t;
+
+#endif // COM_ARCHIVE_ARCHIVEDETAILS_T_DEFINED
 
 // short form for composite type COM:Archive:ArchiveDetails
 #define COM_ARCHIVE_ARCHIVEDETAILS_SHORT_FORM 0x2000201000001L
+#ifndef COM_ARCHIVE_ARCHIVEDETAILS_LIST_T_DEFINED
+#define COM_ARCHIVE_ARCHIVEDETAILS_LIST_T_DEFINED
+
 typedef struct _com_archive_archivedetails_list_t com_archive_archivedetails_list_t;
+
+#endif // COM_ARCHIVE_ARCHIVEDETAILS_LIST_T_DEFINED
 
 // short form for list of composite type COM:Archive:ArchiveDetails
 #define COM_ARCHIVE_ARCHIVEDETAILS_LIST_SHORT_FORM 0x2000201ffffffL
 
 // generated code for composite COM:Archive:ArchiveQuery
+#ifndef COM_ARCHIVE_ARCHIVEQUERY_T_DEFINED
+#define COM_ARCHIVE_ARCHIVEQUERY_T_DEFINED
+
 typedef struct _com_archive_archivequery_t com_archive_archivequery_t;
+
+#endif // COM_ARCHIVE_ARCHIVEQUERY_T_DEFINED
 
 // short form for composite type COM:Archive:ArchiveQuery
 #define COM_ARCHIVE_ARCHIVEQUERY_SHORT_FORM 0x2000201000002L
+#ifndef COM_ARCHIVE_ARCHIVEQUERY_LIST_T_DEFINED
+#define COM_ARCHIVE_ARCHIVEQUERY_LIST_T_DEFINED
+
 typedef struct _com_archive_archivequery_list_t com_archive_archivequery_list_t;
+
+#endif // COM_ARCHIVE_ARCHIVEQUERY_LIST_T_DEFINED
 
 // short form for list of composite type COM:Archive:ArchiveQuery
 #define COM_ARCHIVE_ARCHIVEQUERY_LIST_SHORT_FORM 0x2000201fffffeL
 
 // generated code for composite COM:Archive:CompositeFilter
+#ifndef COM_ARCHIVE_COMPOSITEFILTER_T_DEFINED
+#define COM_ARCHIVE_COMPOSITEFILTER_T_DEFINED
+
 typedef struct _com_archive_compositefilter_t com_archive_compositefilter_t;
+
+#endif // COM_ARCHIVE_COMPOSITEFILTER_T_DEFINED
 
 // short form for composite type COM:Archive:CompositeFilter
 #define COM_ARCHIVE_COMPOSITEFILTER_SHORT_FORM 0x2000201000003L
+#ifndef COM_ARCHIVE_COMPOSITEFILTER_LIST_T_DEFINED
+#define COM_ARCHIVE_COMPOSITEFILTER_LIST_T_DEFINED
+
 typedef struct _com_archive_compositefilter_list_t com_archive_compositefilter_list_t;
+
+#endif // COM_ARCHIVE_COMPOSITEFILTER_LIST_T_DEFINED
 
 // short form for list of composite type COM:Archive:CompositeFilter
 #define COM_ARCHIVE_COMPOSITEFILTER_LIST_SHORT_FORM 0x2000201fffffdL
 
 // generated code for composite COM:Archive:CompositeFilterSet
+#ifndef COM_ARCHIVE_COMPOSITEFILTERSET_T_DEFINED
+#define COM_ARCHIVE_COMPOSITEFILTERSET_T_DEFINED
+
 typedef struct _com_archive_compositefilterset_t com_archive_compositefilterset_t;
+
+#endif // COM_ARCHIVE_COMPOSITEFILTERSET_T_DEFINED
 
 // short form for composite type COM:Archive:CompositeFilterSet
 #define COM_ARCHIVE_COMPOSITEFILTERSET_SHORT_FORM 0x2000201000004L
+#ifndef COM_ARCHIVE_COMPOSITEFILTERSET_LIST_T_DEFINED
+#define COM_ARCHIVE_COMPOSITEFILTERSET_LIST_T_DEFINED
+
 typedef struct _com_archive_compositefilterset_list_t com_archive_compositefilterset_list_t;
+
+#endif // COM_ARCHIVE_COMPOSITEFILTERSET_LIST_T_DEFINED
 
 // short form for list of composite type COM:Archive:CompositeFilterSet
 #define COM_ARCHIVE_COMPOSITEFILTERSET_LIST_SHORT_FORM 0x2000201fffffcL
@@ -157,41 +252,81 @@ typedef struct _com_archive_compositefilterset_list_t com_archive_compositefilte
 #define COM_ACTIVITYTRACKING_SERVICE_NUMBER 3
 
 // generated code for composite COM:ActivityTracking:ActivityTransfer
+#ifndef COM_ACTIVITYTRACKING_ACTIVITYTRANSFER_T_DEFINED
+#define COM_ACTIVITYTRACKING_ACTIVITYTRANSFER_T_DEFINED
+
 typedef struct _com_activitytracking_activitytransfer_t com_activitytracking_activitytransfer_t;
+
+#endif // COM_ACTIVITYTRACKING_ACTIVITYTRANSFER_T_DEFINED
 
 // short form for composite type COM:ActivityTracking:ActivityTransfer
 #define COM_ACTIVITYTRACKING_ACTIVITYTRANSFER_SHORT_FORM 0x2000301000001L
+#ifndef COM_ACTIVITYTRACKING_ACTIVITYTRANSFER_LIST_T_DEFINED
+#define COM_ACTIVITYTRACKING_ACTIVITYTRANSFER_LIST_T_DEFINED
+
 typedef struct _com_activitytracking_activitytransfer_list_t com_activitytracking_activitytransfer_list_t;
+
+#endif // COM_ACTIVITYTRACKING_ACTIVITYTRANSFER_LIST_T_DEFINED
 
 // short form for list of composite type COM:ActivityTracking:ActivityTransfer
 #define COM_ACTIVITYTRACKING_ACTIVITYTRANSFER_LIST_SHORT_FORM 0x2000301ffffffL
 
 // generated code for composite COM:ActivityTracking:ActivityAcceptance
+#ifndef COM_ACTIVITYTRACKING_ACTIVITYACCEPTANCE_T_DEFINED
+#define COM_ACTIVITYTRACKING_ACTIVITYACCEPTANCE_T_DEFINED
+
 typedef struct _com_activitytracking_activityacceptance_t com_activitytracking_activityacceptance_t;
+
+#endif // COM_ACTIVITYTRACKING_ACTIVITYACCEPTANCE_T_DEFINED
 
 // short form for composite type COM:ActivityTracking:ActivityAcceptance
 #define COM_ACTIVITYTRACKING_ACTIVITYACCEPTANCE_SHORT_FORM 0x2000301000002L
+#ifndef COM_ACTIVITYTRACKING_ACTIVITYACCEPTANCE_LIST_T_DEFINED
+#define COM_ACTIVITYTRACKING_ACTIVITYACCEPTANCE_LIST_T_DEFINED
+
 typedef struct _com_activitytracking_activityacceptance_list_t com_activitytracking_activityacceptance_list_t;
+
+#endif // COM_ACTIVITYTRACKING_ACTIVITYACCEPTANCE_LIST_T_DEFINED
 
 // short form for list of composite type COM:ActivityTracking:ActivityAcceptance
 #define COM_ACTIVITYTRACKING_ACTIVITYACCEPTANCE_LIST_SHORT_FORM 0x2000301fffffeL
 
 // generated code for composite COM:ActivityTracking:ActivityExecution
+#ifndef COM_ACTIVITYTRACKING_ACTIVITYEXECUTION_T_DEFINED
+#define COM_ACTIVITYTRACKING_ACTIVITYEXECUTION_T_DEFINED
+
 typedef struct _com_activitytracking_activityexecution_t com_activitytracking_activityexecution_t;
+
+#endif // COM_ACTIVITYTRACKING_ACTIVITYEXECUTION_T_DEFINED
 
 // short form for composite type COM:ActivityTracking:ActivityExecution
 #define COM_ACTIVITYTRACKING_ACTIVITYEXECUTION_SHORT_FORM 0x2000301000003L
+#ifndef COM_ACTIVITYTRACKING_ACTIVITYEXECUTION_LIST_T_DEFINED
+#define COM_ACTIVITYTRACKING_ACTIVITYEXECUTION_LIST_T_DEFINED
+
 typedef struct _com_activitytracking_activityexecution_list_t com_activitytracking_activityexecution_list_t;
+
+#endif // COM_ACTIVITYTRACKING_ACTIVITYEXECUTION_LIST_T_DEFINED
 
 // short form for list of composite type COM:ActivityTracking:ActivityExecution
 #define COM_ACTIVITYTRACKING_ACTIVITYEXECUTION_LIST_SHORT_FORM 0x2000301fffffdL
 
 // generated code for composite COM:ActivityTracking:OperationActivity
+#ifndef COM_ACTIVITYTRACKING_OPERATIONACTIVITY_T_DEFINED
+#define COM_ACTIVITYTRACKING_OPERATIONACTIVITY_T_DEFINED
+
 typedef struct _com_activitytracking_operationactivity_t com_activitytracking_operationactivity_t;
+
+#endif // COM_ACTIVITYTRACKING_OPERATIONACTIVITY_T_DEFINED
 
 // short form for composite type COM:ActivityTracking:OperationActivity
 #define COM_ACTIVITYTRACKING_OPERATIONACTIVITY_SHORT_FORM 0x2000301000004L
+#ifndef COM_ACTIVITYTRACKING_OPERATIONACTIVITY_LIST_T_DEFINED
+#define COM_ACTIVITYTRACKING_OPERATIONACTIVITY_LIST_T_DEFINED
+
 typedef struct _com_activitytracking_operationactivity_list_t com_activitytracking_operationactivity_list_t;
+
+#endif // COM_ACTIVITYTRACKING_OPERATIONACTIVITY_LIST_T_DEFINED
 
 // short form for list of composite type COM:ActivityTracking:OperationActivity
 #define COM_ACTIVITYTRACKING_OPERATIONACTIVITY_LIST_SHORT_FORM 0x2000301fffffcL
