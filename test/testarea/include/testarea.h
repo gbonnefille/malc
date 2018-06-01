@@ -158,8 +158,6 @@ typedef struct _testarea_testservice_testfinalcompositeb_list_t testarea_testser
 // short form for list of composite type TestArea:TestService:TestFinalCompositeB
 #define TESTAREA_TESTSERVICE_TESTFINALCOMPOSITEB_LIST_SHORT_FORM 0xc8000101fffffbL
 
-#include "testarea_library.h"
-
 int testarea_malbinary_decode_mal_element(mal_decoder_t * decoder, void * cursor, mal_element_holder_t * element_holder);
 
 // include required areas definitions
@@ -275,6 +273,18 @@ int testarea_testservice_testcrossref_send_decode_0(void * cursor, mal_decoder_t
 
 // test function
 void testarea_test(bool verbose);
+
+#include "testarea_testenumeration_list.h"
+#include "testarea_testservice_testcomposite.h"
+#include "testarea_testservice_testcomposite_list.h"
+#include "testarea_testservice_testfullcomposite.h"
+#include "testarea_testservice_testfullcomposite_list.h"
+#include "testarea_testservice_testupdate.h"
+#include "testarea_testservice_testupdate_list.h"
+#include "testarea_testservice_testfinalcompositea.h"
+#include "testarea_testservice_testfinalcompositea_list.h"
+#include "testarea_testservice_testfinalcompositeb.h"
+#include "testarea_testservice_testfinalcompositeb_list.h"
 
 #ifdef __cplusplus
 }
