@@ -708,9 +708,9 @@ int trap_publish_register(mal_endpoint_t *mal_endpoint, mal_message_t *init_mess
       MAL_INTERACTIONTYPE_PUBSUB, stage);
 
   mal_message_set_uri_to(result_message,
-      mal_message_get_uri_from(init_message));
+      strdup(mal_message_get_uri_from(init_message)));
   mal_message_set_free_uri_to(result_message, false);
-  mal_message_set_uri_from(result_message, mal_endpoint_get_uri(mal_endpoint));
+  mal_message_set_uri_from(result_message, strdup(mal_endpoint_get_uri(mal_endpoint)));
   mal_message_set_free_uri_from(result_message, false);
   mal_message_set_transaction_id(result_message,
       mal_message_get_transaction_id(init_message));
