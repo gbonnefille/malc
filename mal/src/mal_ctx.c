@@ -164,7 +164,7 @@ int mal_ctx_recv_message(
 int mal_ctx_init_operation(mal_ctx_t *self, mal_endpoint_t *mal_endpoint,
     mal_message_t *message, mal_uri_t *uri_to, bool set_tid) {
     mal_message_set_uri_to(message, uri_to);
-    mal_message_set_uri_from(message,  mal_endpoint_get_uri(mal_endpoint));
+    mal_message_set_uri_from(message,  strdup(mal_endpoint_get_uri(mal_endpoint)));
     mal_message_set_free_uri_from(message, false);
     if (set_tid) {
       mal_message_set_transaction_id(message, mal_endpoint_get_next_transaction_id_counter(mal_endpoint));
