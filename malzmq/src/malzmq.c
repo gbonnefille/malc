@@ -857,7 +857,7 @@ int malzmq_get_port_from_uri(char *uri) {
 // specified in parameter: "maltcp://ipaddress:port/service" -> "service"
 char *malzmq_get_service_from_uri(char *full_uri) {
   if (strncmp(MALZMTP_URI, full_uri, sizeof MALZMTP_URI -1) == 0) {
-    char *ptr = strchr(full_uri +sizeof MALZMTP_URI, '/');
+    char *ptr = strchr(full_uri + sizeof MALZMTP_URI, '/');
     return ptr+1;
   } else {
     return full_uri;
