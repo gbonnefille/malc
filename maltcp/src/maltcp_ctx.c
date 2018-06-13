@@ -27,6 +27,8 @@
 
 static const char ZLOOP_ENDPOINTS_SOCKET_URI[] = "inproc://zloop.endpoints";
 
+static const char ZLOOP_STOP_SOCKET_URI[] = "inproc://zloop.stop";
+
 static const int BACKLOG = 5;
 
 struct _maltcp_ctx_t {
@@ -36,6 +38,8 @@ struct _maltcp_ctx_t {
   char *port;
   char *root_uri;
   int mal_socket;         // TCP server socket listening to remote mal contexts
+  void *stop_req_socket;
+  void *stop_rep_socket;
   zhash_t *cnx_table;     // TCP client sockets connected to remote mal contexts, key = short URI
   void *endpoints_socket; // inproc connected to endpoints
   zloop_t *zloop;
@@ -398,6 +402,20 @@ int maltcp_ctx_server_socket_create(int port, int backlog) {
   return listen_socket;
 }
 
+int maltcp_ctx_stop_listener(zloop_t *zloop, zmq_pollitem_t *poller, void *arg) {
+  maltcp_ctx_t *self = (maltcp_ctx_t *) arg;
+  char buff[BUFSIZ];
+  int rc;
+  rc = zmq_recv(self->stop_rep_socket,buff, BUFSIZ, 0);
+  assert (rc >= 0);
+  clog_debug(maltcp_logger, "maltcp_ctx: stop requested.\n");
+  if (strcmp(buff, "STOP") == 0) {
+    return -1;
+  }
+  clog_warning(maltcp_logger, "maltcp_ctx: unrecognized command: %s\n", buff);
+  return 0;
+}
+
 // This function is called when an incoming connection is detected on the
 // listening socket. It accepts the connection and registers the appropriate
 // poller to receive message.
@@ -508,9 +526,21 @@ maltcp_ctx_t *maltcp_ctx_new(mal_ctx_t *mal_ctx,
 //  zloop_set_verbose(zloop, true);
   self->zloop = zloop;
 
+  int rc;
   zmq_pollitem_t poller = { NULL, listen, ZMQ_POLLIN };
-  int rc = zloop_poller(zloop, &poller, maltcp_ctx_socket_accept, self);
+  rc = zloop_poller(zloop, &poller, maltcp_ctx_socket_accept, self);
   assert(rc == 0);
+
+  self->stop_req_socket = zsocket_new(zmq_ctx, ZMQ_PAIR);
+
+  self->stop_rep_socket = zsocket_new(zmq_ctx, ZMQ_PAIR);
+
+  zmq_pollitem_t poller_stop = { self->stop_rep_socket, NULL, ZMQ_POLLIN };
+  rc = zloop_poller(zloop, &poller_stop, maltcp_ctx_stop_listener, self);
+  assert(rc == 0);
+
+  zsocket_bind(self->stop_rep_socket, ZLOOP_STOP_SOCKET_URI);
+  zsocket_connect(self->stop_req_socket, ZLOOP_STOP_SOCKET_URI);
 
   mal_ctx_set_binding(
       mal_ctx, self,
@@ -539,14 +569,14 @@ int maltcp_ctx_stop(void *self) {
   maltcp_ctx_t *mal_ctx = (maltcp_ctx_t *) self;
 
   clog_debug(maltcp_logger, "maltcp_ctx_stop...\n");
-  if (mal_ctx->mal_socket != -1) {
-    // Note: this method is not symmetric with maltcp_ctx_start, may be we have to
-    // create and bind the socket in maltcp_ctx_start rather than in maltcp_ctx_new.
-    int socket = mal_ctx->mal_socket;
-    mal_ctx->mal_socket = -1;
-    close(socket);
-  }
-  clog_debug(maltcp_logger, "maltcp_ctx_stop: stopped.\n");
+  int rc;
+  rc = zmq_send(mal_ctx->stop_req_socket, "STOP", 5, 0);
+  if (rc <= 0)
+    clog_error(maltcp_logger, "Failed to send: %d -> %s\n",
+               rc, strerror(errno));
+  //assert (rc > 0);
+  else
+    clog_debug(maltcp_logger, "maltcp_ctx_stop: stopped.\n");
 
   return 0;
 }
@@ -585,6 +615,14 @@ int maltcp_ctx_destroy(void **self_p) {
     zloop_destroy(&self->zloop);
 //    zsocket_destroy(self->zmq_ctx, self->endpoints_socket);
 //    zmq_close(self->endpoints_socket);
+
+    zsocket_destroy(self->zmq_ctx, self->stop_req_socket);
+    zsocket_destroy(self->zmq_ctx, self->stop_rep_socket);
+
+    int socket = self->mal_socket;
+    self->mal_socket = -1;
+    close(socket);
+
     zctx_destroy(&self->zmq_ctx);
 
     free(self);
